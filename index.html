@@ -113,7 +113,7 @@ function applyTheme(){let t='dark';try{t=JSON.parse(localStorage.getItem('bl_the
  if(t==='auto')t=matchMedia('(prefers-color-scheme: light)').matches?'light':'dark';
  document.documentElement.dataset.theme=t;const m=document.querySelector('meta[name=theme-color]');if(m)m.content=t==='light'?'#f4f5f7':'#0f1115'}
 applyTheme();
-const APP_VERSION='v1.5';
+const APP_VERSION='v1.5.1';
 const DEFAULT_TYPES=[
  {id:'breast',name:'모유수유',emoji:'🤱',color:'#FFD54A',kind:'duration',enabled:true,feed:true,ends:['sleep'],tags:['왼쪽','오른쪽','양쪽']},
  {id:'formula',name:'분유',emoji:'🍼',color:'#FF9F43',kind:'point',enabled:true,feed:true,ends:['sleep'],unit:'ml',presets:[20,40,60,80,100,120],defaultValue:60},
@@ -170,7 +170,10 @@ const store={
   return localAll().filter(e=>{const a=+new Date(e.start_at);let b=e.end_at?+new Date(e.end_at):(isOpen(e)?now:a);return a<+to&&b>=+from});
  },
  async add(e){
-  if(remote())return rpc('add_event',{p_code:dev.code,p_type:e.type,p_start:e.start_at,p_end:e.end_at||null,p_value:e.value??null,p_note:e.note||null,p_by:e.created_by||dev.who||null});
+  if(remote()){const r=await rpc('add_event',{p_code:dev.code,p_type:e.type,p_start:e.start_at,p_end:e.end_at||null,p_value:e.value??null,p_note:e.note||null,p_by:e.created_by||dev.who||null});
+   for(const l of (T(e.type).ends||[]))for(const x of events.filter(x=>x.type===l&&isOpen(x)&&+new Date(x.start_at)<=+new Date(r.start_at)))
+    {try{await rpc('update_event',{p_code:dev.code,p_id:x.id,p_type:x.type,p_start:x.start_at,p_end:r.start_at,p_value:x.value??null,p_note:x.note||null})}catch(_){}}
+   return r}
   const all=localAll();const n={id:uid(),end_at:null,value:null,note:null,created_by:dev.who||null,...e};
   (T(n.type).ends||[]).forEach(l=>all.filter(x=>x.type===l&&isOpen(x)&&+new Date(x.start_at)<=+new Date(n.start_at)).forEach(x=>{x.end_at=n.start_at}));
   all.push(n);
@@ -400,7 +403,7 @@ function renderChart(p){
   h('button',{disabled:weekOffset===0,onclick:()=>{weekOffset=Math.max(0,weekOffset-1);refresh()}},'▶'));
  const used=new Set(events.map(e=>e.type));
  const lg=h('div',{class:'legend'},config.types.filter(t=>t.enabled||used.has(t.id)).map(t=>h('button',{class:'lg'+(hidden.has(t.id)?' off':''),
-  onclick:()=>{hidden.has(t.id)?hidden.delete(t.id):hidden.add(t.id);LS.set('bl_hidden',[...hidden]);renderTab()}},t.id==='diaper'?h('span',{style:'font-size:11px'},h('span',{style:`color:${POO}`},'★'),h('span',{style:`color:${PEE}`},'★')):h('i',{style:`background:${t.color}`}),t.id==='diaper'?'기저귀 (응가·쉬)':t.name)),
+  onclick:()=>{hidden.has(t.id)?hidden.delete(t.id):hidden.add(t.id);LS.set('bl_hidden',[...hidden]);renderTab()}},t.id==='sleep'?h('span',{style:'color:#FFD54A;font-size:12px'},'☾'):t.id==='diaper'?h('span',{style:'font-size:11px'},h('span',{style:`color:${POO}`},'★'),h('span',{style:`color:${PEE}`},'★')):h('i',{style:`background:${t.color}`}),t.id==='diaper'?'기저귀 (응가·쉬)':t.name)),
   h('button',{class:'lg'+(hidden.has('_gap')?' off':''),onclick:()=>{hidden.has('_gap')?hidden.delete('_gap'):hidden.add('_gap');LS.set('bl_hidden',[...hidden]);renderTab()}},h('i',{style:'background:none;box-shadow:none;border-left:2px dotted #FFD54A;width:2px;height:10px;border-radius:0'}),'수유 간격'));
  const wrap=h('div',{class:'chartwrap'});p.append(nav,lg,wrap);
  const W=Math.max(300,wrap.clientWidth||p.clientWidth||360);
@@ -414,8 +417,8 @@ function renderChart(p){
   s+=`<line x1="${AX}" x2="${W}" y1="${y}" y2="${y}" stroke="${m?CC('grid'):CC('grid2')}" stroke-width="${m?1:.6}"/>`;
   if(m)s+=`<text x="${AX-4}" y="${y+3}" text-anchor="end" font-size="9" fill="${CC('ax')}">${hr}</text>`}
  const vis=events.filter(e=>!hidden.has(e.type));
- const isMk=e=>!!T(e.type).marker;
- const main=vis.filter(e=>!isMk(e)),mks=vis.filter(isMk);
+ const isMk=e=>!!T(e.type).marker,isMoon=e=>e.type==='sleep';
+ const main=vis.filter(e=>!isMk(e)&&!isMoon(e)),mks=vis.filter(isMk),moons=vis.filter(isMoon);
  const GUT=mks.length?12:0;
  const fy=(t,ds)=>TOP+(t-ds)/36e5*HH;
  const span=e=>{const a=+new Date(e.start_at);if(T(e.type).kind!=='duration')return [a,a];let b=e.end_at?+new Date(e.end_at):(isOpen(e)?now:a);return [a,Math.max(a,b)]};
@@ -442,6 +445,7 @@ function renderChart(p){
   const cx=x+cw/2,fy0=TOP+CH;
   s+=`<text x="${cx}" y="${fy0+13}" text-anchor="middle" font-size="10" fill="${CC('txt')}">🍼${feeds}</text><text x="${cx}" y="${fy0+27}" text-anchor="middle" font-size="10" fill="#FF9F43" font-weight="600">${ml?ml+'ml':'-'}</text><text x="${cx}" y="${fy0+41}" text-anchor="middle" font-size="10" fill="${CC('txt')}">💧${dia}</text><text x="${cx}" y="${fy0+55}" text-anchor="middle" font-size="10" fill="${CC('txt')}">😴${(sl/36e5).toFixed(1)}</text>`;
  });
+ const pills={};
  if(!hidden.has('_gap')){
   const fs=events.filter(e=>T(e.type).feed&&!isOpen(e)).map(e=>{const a=+new Date(e.start_at);return {s:a,e:T(e.type).kind==='duration'?(e.end_at?+new Date(e.end_at):a):a}}).sort((p,q)=>p.s-q.s);
   const ses=[];fs.forEach(f=>{const g=ses[ses.length-1];if(g&&f.s<=g.e+30*6e4)g.e=Math.max(g.e,f.e);else ses.push({s:f.s,e:f.e})});
@@ -449,10 +453,19 @@ function renderChart(p){
   for(let k=1;k<ses.length;k++){const a=ses[k-1].e,b=ses[k].s,gap=b-a;if(gap<20*6e4||gap>8*36e5||b<r0||a>r1)continue;
    days.forEach((d,i)=>{const ds=+d,de=ds+864e5;if(b<=ds||a>=de)return;const x=AX+i*cw,y0=fy(Math.max(a,ds),ds),y1=fy(Math.min(b,de),ds);
     s+=`<line x1="${x+cw/2}" x2="${x+cw/2}" y1="${y0+5}" y2="${y1-5}" stroke="#FFD54A" stroke-opacity=".55" stroke-width="1.5" stroke-dasharray="2 3"/>`;
-    const mid=(a+b)/2;if(mid>=ds&&mid<de&&gap>=40*6e4){const ym=fy(mid,ds),txt=agoS(gap).replace('분','m');
+    const mid=(a+b)/2;if(mid>=ds&&mid<de&&gap>=40*6e4){const ym=fy(mid,ds),txt=agoS(gap).replace('분','m');(pills[i]=pills[i]||[]).push(ym);
      s+=`<rect x="${x+cw/2-16}" y="${ym-7}" width="32" height="14" rx="7" fill="${CC('col')}" stroke="#FFD54A" stroke-opacity=".6" stroke-width="1"/><text x="${x+cw/2}" y="${ym+3.5}" text-anchor="middle" font-size="9.5" font-weight="700" fill="#E0A800">${txt}</text>`}
    })}
  }
+ moons.forEach(e=>{const a=+new Date(e.start_at),op=isOpen(e),b=e.end_at?+new Date(e.end_at):(op?now:a),mid=(a+Math.max(a,b))/2;
+  const i=days.findIndex(d=>mid>=+d&&mid<+d+864e5);if(i<0)return;const ds=+days[i],x=AX+i*cw;let y=fy(mid,ds);
+  for(const py of (pills[i]||[]))if(Math.abs(py-y)<15)y=py+(y>=py?15:-15);
+  y=Math.max(TOP+8,Math.min(TOP+CH-8,y));
+  const txt=(op?'…':'')+agoS(b-a).replace('분','m'),w=Math.min(cw-4,14+txt.length*6.2),bx=x+(cw-w)/2;
+  s+=`<rect x="${bx}" y="${y-8}" width="${w}" height="16" rx="8" fill="${CC('col')}" stroke="#FFD54A" stroke-opacity="${op?.9:.35}" ${op?'stroke-dasharray="3 2"':''}/>`;
+  s+=`<path d="M${bx+8} ${y-5.5} A5.5 5.5 0 1 0 ${bx+8} ${y+5.5} A4.2 5.5 0 1 1 ${bx+8} ${y-5.5}Z" fill="#FFD54A"/>`;
+  s+=`<text x="${bx+12}" y="${y+3.5}" font-size="9.5" font-weight="700" fill="#E8B800">${txt}</text>`;
+  s+=`<rect data-id="${esc(e.id)}" x="${x}" y="${y-10}" width="${cw}" height="20" fill="transparent"/>`});
  {const nd=new Date(),ny=TOP+(nd-dayStart(nd))/36e5*HH,ti=days.findIndex(d=>+d===today);
   const tx=ti>=0?AX+ti*cw:W;
   s+=`<line x1="${AX}" x2="${tx}" y1="${ny}" y2="${ny}" stroke="#ff5252" stroke-width="1.2" stroke-dasharray="4 3" opacity=".75"/>`;
