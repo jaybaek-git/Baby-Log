@@ -46,6 +46,10 @@ header h1{font-size:21px;margin:0;flex:1}
 .tb.sm{flex-direction:row;justify-content:flex-start;gap:6px;padding:6px 8px;text-align:left}.tb.sm .e{font-size:20px}.tb.sm .n{font-size:13px}.tb.sm .s{font-size:10px}.tb.sm::before{left:0;right:auto;top:0;bottom:0;width:3px;height:auto}
 .sw2{display:flex;flex-direction:column;min-width:0}
 .tb .chk{position:absolute;top:5px;right:8px;font-size:17px;font-weight:900;color:#22C55E;line-height:1}.tb.sm .chk{top:4px;right:7px;font-size:14px}
+.btns.compact{display:block}.brow{display:grid;gap:6px;margin-bottom:6px}
+.tb.cpt{padding:6px 2px 5px;gap:0;border-radius:12px}.tb.cpt .e{font-size:20px;line-height:1.15}.tb.cpt .n{font-size:12px}.tb.cpt .s{font-size:9.5px;letter-spacing:-.2px}
+.tb.cps{flex-direction:row;justify-content:center;gap:4px;padding:6px 2px;border-radius:10px}.tb.cps .e{font-size:16px}.tb.cps .sw2,.tb.cps .s{display:none}.tb.cps .n{font-size:12px}.tb.cps::before{left:0;right:0;top:0;height:3px;width:auto}
+.tb.cps .chk{top:1px;right:3px;font-size:11px}.tb.cpt .chk{font-size:13px;top:3px;right:5px}
 .editbar{grid-column:1/-1;display:flex;align-items:center;gap:6px;font-size:12px;color:var(--sub);background:var(--card);border:1px dashed var(--line2);border-radius:10px;padding:6px 8px}.editbar span{flex:1}
 .tb.jig{touch-action:none;animation:jig .35s ease-in-out infinite alternate;-webkit-user-select:none;user-select:none}.tb.jig:nth-child(odd){animation-delay:.15s}
 @keyframes jig{from{transform:rotate(-1.2deg)}to{transform:rotate(1.2deg)}}
@@ -130,14 +134,14 @@ function applyTheme(){let t='dark';try{t=JSON.parse(localStorage.getItem('bl_the
  if(t==='auto')t=matchMedia('(prefers-color-scheme: light)').matches?'light':'dark';
  document.documentElement.dataset.theme=t;const m=document.querySelector('meta[name=theme-color]');if(m)m.content=t==='light'?'#f4f5f7':'#0f1115'}
 applyTheme();
-const APP_VERSION='v1.9';
+const APP_VERSION='v1.9.2';
 const DEFAULT_TYPES=[
  {id:'breast',name:'모유수유',emoji:'🤱',color:'#FFD54A',kind:'duration',enabled:true,feed:true,ends:['sleep'],tags:['왼쪽','오른쪽','양쪽']},
  {id:'formula',name:'분유',emoji:'🍼',color:'#FF9F43',kind:'point',enabled:true,feed:true,ends:['sleep'],unit:'ml',presets:[20,40,60,80,100,120],defaultValue:60},
  {id:'diaper',name:'기저귀',emoji:'🩲',color:'#4DA3FF',kind:'point',enabled:true,ends:['sleep'],tags:['소변','대변','둘다']},
  {id:'sleep',name:'수면',emoji:'😴',color:'#9B7BFF',kind:'duration',enabled:true},
- {id:'bath',name:'목욕',emoji:'🛁',color:'#FFFFFF',kind:'point',enabled:false,marker:true,alsoLog:['diaper'],ends:['sleep']},
- {id:'weight',name:'체중',emoji:'⚖️',color:'#90A4AE',kind:'point',enabled:true,unit:'kg',marker:true,daily:true},
+ {id:'bath',name:'목욕',emoji:'🛁',color:'#FFFFFF',kind:'point',enabled:false,marker:true,alsoLog:['diaper'],ends:['sleep'],small:true},
+ {id:'weight',name:'체중',emoji:'⚖️',color:'#90A4AE',kind:'point',enabled:true,unit:'kg',marker:true,daily:true,small:true},
  {id:'temp',name:'체온',emoji:'🌡️',color:'#FF6B6B',kind:'point',enabled:false,unit:'°C',presets:[36.5,36.8,37.0,37.5],marker:true,small:true},
  {id:'vitamin',name:'비타민',emoji:'💊',color:'#4CD97B',kind:'point',enabled:false,marker:true,small:true},
  {id:'tummy',name:'터미타임',emoji:'🐢',color:'#2EC4B6',kind:'duration',enabled:false},
@@ -285,18 +289,23 @@ function renderButtons(){
   const open=events.find(e=>e.type===t.id&&isOpen(e));
   const last=events.filter(e=>e.type===t.id).sort((a,b)=>new Date(b.start_at)-new Date(a.start_at))[0];
   const sub=open?`진행 중 ${agoS(now-new Date(open.start_at))}`:last?`${fmtHM(last.start_at)} (${agoS(now-new Date(last.start_at))} 전)`:(t.kind==='duration'?'탭: 시작':'탭: 기록');
-  const sm=t.small&&!btnEdit;
+  const cmp=LS.get('bl_compact',false)&&!btnEdit;const sm=t.small&&!btnEdit&&!cmp;
   const t0=+dayStart(new Date()),done=(t.daily??t.marker)&&events.some(e=>e.type===t.id&&+new Date(e.start_at)>=t0);
   const b=h('button',{class:'tb'+(open?' on':'')+(sm?' sm':'')+(btnEdit?' jig':'')+(done?' done':''),style:`--c:${t.color}`,'data-id':t.id,
    onclick:()=>{if(suppressClick){suppressClick=false;return}if(btnEdit)return;onTap(t)}},done?h('span',{class:'chk'},'✓'):null,h('span',{class:'e'},t.emoji),
    sm?h('span',{class:'sw2'},h('span',{class:'n'},open?`${t.name} 끝`:t.name),h('span',{class:'s'},sub)):[h('span',{class:'n'},open?`${t.name} 끝`:t.name),h('span',{class:'s'},btnEdit?'끌어서 이동':sub)]);
-  attachBtnPointer(b);b._small=!!sm;return b};
+  attachBtnPointer(b);b._small=cmp?!!t.small:!!sm;return b};
  const list=orderedTypes().map(mk);
  if(btnEdit){
   $('#btns').replaceChildren(h('div',{class:'editbar'},h('span',{},'✋ 끌어서 원하는 자리로 옮기세요 (이 폰에만 적용)'),
    h('button',{class:'chip',onclick:()=>{localStorage.removeItem('bl_order');renderButtons()}},'초기화'),
    h('button',{class:'chip',style:'background:#FFD54A;color:#111;font-weight:700',onclick:()=>{btnEdit=false;renderButtons()}},'완료')),...list);
   return}
+ const compact=LS.get('bl_compact',false);$('#btns').classList.toggle('compact',compact);
+ if(compact){const big=list.filter(b=>!b._small),sml=list.filter(b=>b._small);
+  big.forEach(b=>{b.classList.add('cpt')});sml.forEach(b=>{b.classList.remove('sm');b.classList.add('cps')});
+  $('#btns').replaceChildren(h('div',{class:'brow',style:`grid-template-columns:repeat(${Math.max(1,big.length)},minmax(0,1fr))`},big),
+   sml.length?h('div',{class:'brow',style:`grid-template-columns:repeat(${sml.length},minmax(0,1fr))`},sml):'');return}
  $('#btns').replaceChildren(...list.reduce((acc,b)=>{if(b._small){const last=acc[acc.length-1];if(last&&last._pair&&last.children.length<2){last.append(b);return acc}const c=h('div',{class:'tpair'});c._pair=true;c.append(b);acc.push(c);return acc}acc.push(b);return acc},[]));
 }
 function attachBtnPointer(b){
@@ -393,7 +402,7 @@ function numPad(input){const add=k=>{let v=input.value;if(k==='⌫')v=v.slice(0,
  return h('div',{class:'npad'},['1','2','3','4','5','6','7','8','9','.','0','⌫'].map(k=>h('button',{type:'button',onclick:()=>add(k)},k)))}
 function openQuick(t){
  const last=events.filter(e=>e.type===t.id&&e.value!=null).sort((a,b)=>new Date(b.start_at)-new Date(a.start_at))[0];
- const val=h('input',{type:'number',step:'any',inputmode:'decimal',placeholder:t.unit||'',value:t.defaultValue??(last?last.value:'')});
+ const val=h('input',{type:'text',inputmode:'decimal',placeholder:t.unit||'',value:t.defaultValue??(last?last.value:'')});
  const note=h('input',{type:'text',placeholder:'메모 (선택)'});
  const tm=h('input',{type:'datetime-local',value:toLocalInput(new Date())});
  const save=async v=>{const act=beginAct(`${t.emoji} ${t.name}`);try{
@@ -418,7 +427,7 @@ function openEdit(ev,isNew){
    onclick:()=>{typeSel.value=t.id;paintTypes();upd()}},h('span',{style:'font-size:20px'},t.emoji),h('span',{},t.name))));
  const st=h('input',{type:'datetime-local',value:toLocalInput(ev.start_at)});
  const en=h('input',{type:'datetime-local',value:ev.end_at?toLocalInput(ev.end_at):''});
- const val=h('input',{type:'number',step:'any',inputmode:'decimal',value:ev.value??''});
+ const val=h('input',{type:'text',inputmode:'decimal',value:ev.value??''});
  const note=h('input',{type:'text',value:ev.note||''});
  const tags=h('div',{class:'chips'});
  const valChips=h('div',{class:'chips',style:'margin:0 0 6px'});
@@ -668,6 +677,9 @@ function renderSettings(p){
  const cur=LS.get('bl_theme','dark');
  p.append(sec('화면 테마 (이 폰에만 적용)',h('div',{class:'chips',style:'margin:0'},[['dark','🌙 다크'],['light','☀️ 화이트'],['auto','⚙️ 아이폰 설정 따라가기']].map(([v,l])=>
   h('button',{class:'chip'+(cur===v?' big':''),style:cur===v?'outline:2px solid #FFD54A':'',onclick:()=>{LS.set('bl_theme',v);applyTheme();renderTab()}},l)))));
+ {const on=LS.get('bl_compact',false);
+  p.append(sec('메뉴 작게 보기 (이 폰에만 적용)',h('div',{class:'chips',style:'margin:0'},[[false,'기본 (3칸)'],[true,'작게 (큰 버튼 한 줄 + 작은 버튼 한 줄)']].map(([v,l])=>
+   h('button',{class:'chip'+(on===v?' big':''),style:on===v?'outline:2px solid #FFD54A':'',onclick:()=>{LS.set('bl_compact',v);renderButtons();renderTab()}},l)))));}
  // 앱 아이콘
  {const curIc=LS.get('bl_icon',null);
   const prev=h('img',{src:curIc||'icon-180.png',style:'width:64px;height:64px;border-radius:15px;object-fit:cover;border:1px solid var(--line)'});
