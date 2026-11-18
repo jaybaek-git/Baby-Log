@@ -27,8 +27,9 @@ header h1{font-size:21px;margin:0;flex:1}
 .hb:disabled{opacity:.3}
 .sync{font-size:12px;color:var(--sub);display:flex;align-items:center;gap:5px}
 .dot{width:8px;height:8px;border-radius:50%;background:#666}
-.status{position:sticky;top:env(safe-area-inset-top);z-index:6;background:var(--bg);margin:0 -12px 10px;padding:6px 12px}
-.status::before{content:"";position:absolute;left:0;right:0;bottom:100%;height:calc(env(safe-area-inset-top) + 1px);background:var(--bg)}
+.topbar{position:sticky;top:0;z-index:6;background:var(--bg);margin:calc(-10px - env(safe-area-inset-top)) -12px 10px;padding:calc(env(safe-area-inset-top) + 8px) 12px 6px}
+.topbar header{margin-bottom:8px}
+.status{margin:0}
 .stgrid{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:6px}
 .st{background:var(--card);border:1px solid var(--line);border-radius:12px;padding:7px 8px;min-width:0;overflow:hidden}
 .st span{display:block;font-size:11px;color:var(--sub);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
@@ -106,8 +107,8 @@ header h1{font-size:21px;margin:0;flex:1}
 </style>
 </head>
 <body>
-<header><h1 id="title">아기 기록</h1><button class="hb" id="undoB" disabled onclick="undoLast()" aria-label="되돌리기">↶</button><button class="hb" id="redoB" disabled onclick="redoLast()" aria-label="다시 실행">↷</button><div class="sync"><span class="dot" id="dot"></span><span id="synctxt">로컬</span></div></header>
-<div class="status" id="status"></div>
+<div class="topbar"><header><h1 id="title">아기 기록</h1><button class="hb" id="undoB" disabled onclick="undoLast()" aria-label="되돌리기">↶</button><button class="hb" id="redoB" disabled onclick="redoLast()" aria-label="다시 실행">↷</button><div class="sync"><span class="dot" id="dot"></span><span id="synctxt">로컬</span></div></header>
+<div class="status" id="status"></div></div>
 <div class="btns" id="btns"></div>
 <div class="tabs"><button data-t="chart" class="a">차트</button><button data-t="list">목록</button><button data-t="settings">설정</button></div>
 <div id="panel"></div>
@@ -117,7 +118,7 @@ function applyTheme(){let t='dark';try{t=JSON.parse(localStorage.getItem('bl_the
  if(t==='auto')t=matchMedia('(prefers-color-scheme: light)').matches?'light':'dark';
  document.documentElement.dataset.theme=t;const m=document.querySelector('meta[name=theme-color]');if(m)m.content=t==='light'?'#f4f5f7':'#0f1115'}
 applyTheme();
-const APP_VERSION='v1.6.2';
+const APP_VERSION='v1.6.3';
 const DEFAULT_TYPES=[
  {id:'breast',name:'모유수유',emoji:'🤱',color:'#FFD54A',kind:'duration',enabled:true,feed:true,ends:['sleep'],tags:['왼쪽','오른쪽','양쪽']},
  {id:'formula',name:'분유',emoji:'🍼',color:'#FF9F43',kind:'point',enabled:true,feed:true,ends:['sleep'],unit:'ml',presets:[20,40,60,80,100,120],defaultValue:60},
@@ -153,6 +154,7 @@ let swipeBusy=false,openSw=null,alarmInfo=null;
 let events=[],weekOffset=0,tab='chart',hidden=new Set(LS.get('bl_hidden',[]));
 function mergeDefaults(c){c.types=c.types||[];c.alarm={...DEFAULT_ALARM,...(c.alarm||{})};c.types.forEach(t=>{const d=DEFAULT_TYPES.find(x=>x.id===t.id);if(d&&t.marker===undefined&&d.marker)t.marker=true;if(d&&t.alsoLog===undefined&&d.alsoLog)t.alsoLog=[...d.alsoLog];if(d&&t.ends===undefined&&d.ends)t.ends=[...d.ends];if(d&&t.defaultValue===undefined&&d.defaultValue!=null)t.defaultValue=d.defaultValue});const ids=new Set(c.types.map(t=>t.id));DEFAULT_TYPES.forEach(d=>{if(!ids.has(d.id))c.types.push({...d,enabled:false})});return c}
 const T=id=>config.types.find(t=>t.id===id)||{id,name:id,emoji:'•',color:'#888',kind:'point'};
+const appTitle=()=>config.title||(config.babyName?`${config.babyName} 기록`:'아기 기록');
 const addType=()=>config.types.find(t=>t.id==='formula'&&t.enabled)||firstEnabled();
 const firstEnabled=()=>config.types.find(t=>t.enabled)||config.types[0];
 const isOpen=e=>T(e.type).kind==='duration'&&!e.end_at&&(Date.now()-new Date(e.start_at))<864e5;
@@ -227,12 +229,13 @@ async function refresh(){
  const my=++refreshing;const {start,end}=weekRange();const now=Date.now();
  const from=new Date(Math.min(+start,now-3*864e5)),to=new Date(Math.max(+end,now+36e5));
  try{const ev=await store.list(from,to);if(my!==refreshing)return;events=ev;setSync(remote()?'ok':'local');
-  if(remote()){try{alarmInfo=await rpc('alarm_status',{p_code:dev.code})}catch(e){alarmInfo=null}}else alarmInfo=null}
+  if(remote()){try{alarmInfo=await rpc('alarm_status',{p_code:dev.code})}catch(e){alarmInfo=null}
+   if(tab!=='settings')try{const c=await rpc('get_config',{p_code:dev.code});if(c&&c.types&&JSON.stringify(c)!==JSON.stringify(config)){config=mergeDefaults(c);LS.set('bl_config',config)}}catch(e){}}else alarmInfo=null}
  catch(e){setSync('err',e.message)}
  whenIdle(renderAll);
 }
 function renderAll(){
- $('#title').textContent=config.babyName?`${config.babyName} 기록`:'아기 기록';
+ $('#title').textContent=appTitle();
  renderLive();if(tab!=='settings'&&!swipeBusy&&tabSig()!==lastSig)renderTab();
 }
 let lastScroll=0,deferT=null;
@@ -620,7 +623,9 @@ function renderSettings(p){
  p.append(renderAlarmSettings());
  // 항목
  const draft=JSON.parse(JSON.stringify(config));
- const baby=inp(draft.babyName,'예: 아기 이름');
+ const baby=inp(appTitle(),'예: 엘리 기록');let titleT;
+ baby.addEventListener('input',()=>{const v=baby.value.trim();config.title=v;draft.title=v;$('#title').textContent=appTitle();document.title=appTitle();
+  clearTimeout(titleT);titleT=setTimeout(async()=>{try{await saveConfig()}catch(e){}},700)});
  const list=h('div');
  const mv=(i,d)=>{const j=i+d;if(j<0||j>=draft.types.length)return;[draft.types[i],draft.types[j]]=[draft.types[j],draft.types[i]];draw()};
  function draw(){list.replaceChildren(...draft.types.map((t,i)=>{
@@ -653,12 +658,12 @@ function renderSettings(p){
      h('div',{class:'trow'},add,h('button',{class:'btn',style:'padding:6px 12px',onclick:doAdd},'+ 추가')));})():null);
  }))}
  draw();
- p.append(sec('기록 버튼 (메뉴)',field('아기 이름 (제목에 표시)',baby),
+ p.append(sec('기록 버튼 (메뉴)',field('앱 제목 (입력하면 바로 두 폰에 반영)',baby),
   h('div',{class:'hint'},'체크한 항목만 버튼으로 보여요. 이름·이모지·색·순서를 바꿀 수 있어요. "시작/끝"은 한 번 누르면 시작, 다시 누르면 끝나요. 단위를 넣으면 값을 입력받아요(예: ml, °C). ● 를 켜면 차트에서 칸을 차지하지 않고 오른쪽 끝에 작은 점으로만 표시돼요(목욕·체온 등).'),
   list,
   h('div',{style:'display:flex;gap:8px;margin-top:8px'},
    h('button',{class:'btn',onclick:()=>{draft.types.push({id:'c_'+Date.now().toString(36),name:'새 항목',emoji:'⭐',color:'#cccccc',kind:'point',enabled:true});draw()}},'+ 항목 추가'),
-   h('button',{class:'btn pri',style:'flex:1',onclick:async()=>{draft.babyName=baby.value.trim();config=draft;try{await saveConfig();toast('메뉴 저장됨')}catch(e){alert('서버 저장 실패: '+e.message)}renderAll();renderTab()}},'메뉴 저장'))));
+   h('button',{class:'btn pri',style:'flex:1',onclick:async()=>{draft.title=baby.value.trim();config=draft;try{await saveConfig();toast('메뉴 저장됨')}catch(e){alert('서버 저장 실패: '+e.message)}renderAll();renderTab()}},'메뉴 저장'))));
 
  // 단축어
  if(remote()){
