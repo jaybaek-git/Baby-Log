@@ -22,7 +22,7 @@ html,body{margin:0;background:var(--bg);color:var(--txt);font-family:-apple-syst
 body{padding:calc(env(safe-area-inset-top) + 10px) 12px calc(env(safe-area-inset-bottom) + 40px)}
 button,input,select,textarea{font:inherit;color:inherit}
 header{display:flex;align-items:center;gap:8px;margin-bottom:10px}
-header h1{font-size:21px;margin:0;flex:1}
+header h1{font-size:21px;margin:0;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}.ttl{flex:1;min-width:0}.lastup{font-size:11px;color:var(--sub);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;margin-top:1px}
 .hb{background:var(--card);border:1px solid var(--line);border-radius:10px;width:38px;height:34px;font-size:18px;font-weight:700}
 .hb:disabled{opacity:.3}
 .sync{font-size:12px;color:var(--sub);display:flex;align-items:center;gap:5px}
@@ -124,7 +124,7 @@ header h1{font-size:21px;margin:0;flex:1}
 </style>
 </head>
 <body>
-<div class="topbar"><header><h1 id="title">아기 기록</h1><button class="hb" id="undoB" disabled onclick="undoLast()" aria-label="되돌리기">↶</button><button class="hb" id="redoB" disabled onclick="redoLast()" aria-label="다시 실행">↷</button><div class="sync"><span class="dot" id="dot"></span><span id="synctxt">로컬</span></div></header>
+<div class="topbar"><header><div class="ttl"><h1 id="title">아기 기록</h1><div id="lastUp" class="lastup"></div></div><button class="hb" id="undoB" disabled onclick="undoLast()" aria-label="되돌리기">↶</button><button class="hb" id="redoB" disabled onclick="redoLast()" aria-label="다시 실행">↷</button><div class="sync"><span class="dot" id="dot"></span><span id="synctxt">로컬</span></div></header>
 <div class="status" id="status"></div></div>
 <div class="btns" id="btns"></div>
 <div class="tabs"><button data-t="chart" class="a">차트</button><button data-t="list">목록</button><button data-t="settings">설정</button></div>
@@ -135,7 +135,7 @@ function applyTheme(){let t='dark';try{t=JSON.parse(localStorage.getItem('bl_the
  if(t==='auto')t=matchMedia('(prefers-color-scheme: light)').matches?'light':'dark';
  document.documentElement.dataset.theme=t;const m=document.querySelector('meta[name=theme-color]');if(m)m.content=t==='light'?'#f4f5f7':'#0f1115'}
 applyTheme();
-const APP_VERSION='v1.10';
+const APP_VERSION='v1.10.1';
 const DEFAULT_TYPES=[
  {id:'breast',name:'모유수유',emoji:'🤱',color:'#FFD54A',kind:'duration',enabled:true,feed:true,ends:['sleep'],tags:['왼쪽','오른쪽','양쪽']},
  {id:'formula',name:'분유',emoji:'🍼',color:'#FF9F43',kind:'point',enabled:true,feed:true,ends:['sleep'],unit:'ml',presets:[20,40,60,80,100,120],defaultValue:60},
@@ -267,7 +267,11 @@ let lastScroll=0,deferT=null;
 window.addEventListener('scroll',()=>{lastScroll=Date.now()},{passive:true});
 window.addEventListener('touchmove',()=>{lastScroll=Date.now()},{passive:true});
 function whenIdle(fn){if(Date.now()-lastScroll<1000){clearTimeout(deferT);deferT=setTimeout(()=>whenIdle(fn),600);return}fn()}
-function renderLive(){renderStatus();renderButtons()}
+function renderLastUp(){const el=$('#lastUp');if(!el)return;
+ const key=e=>+new Date(e.created_at||e.start_at);const e=[...events].sort((a,b)=>key(b)-key(a))[0];
+ if(!e){el.textContent='';return}const t=T(e.type),d=new Date(key(e)),today=+dayStart(new Date())===+dayStart(d);
+ el.textContent=`최근 ${today?'':fmtMD(d)+' '}${fmtHM(d)} · ${e.created_by||'?'} · ${t.emoji} ${t.name}${e.value!=null?' '+e.value+(t.unit||''):''}${e.note&&!/때 함께/.test(e.note)?' ('+e.note+')':''}`}
+function renderLive(){renderStatus();renderButtons();renderLastUp()}
 function card(title,big,sub,color,fill){const c=h('div',{class:'st',style:`border-left:3px solid ${color}`},h('span',{},title),h('b',{},big),sub?h('small',{},sub):null);
  if(fill){c.prepend(h('i',{class:'stfill',style:`width:${Math.round(fill.p*1000)/10}%;background:${fill.c}`}));if(fill.over)c.style.borderColor=fill.c}return c}
 const progCol=p=>p<0.6?'#3a9d5d':p<0.85?'#c9a227':p<1?'#e07b39':'#d64545';
