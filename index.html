@@ -52,6 +52,7 @@ header h1{font-size:21px;margin:0;white-space:nowrap;overflow:hidden;text-overfl
 .tb.cps{flex-direction:row;justify-content:center;gap:4px;padding:6px 2px;border-radius:10px}.tb.cps .e{font-size:16px}.tb.cps .sw2,.tb.cps .s{display:none}.tb.cps .n{font-size:12px}.tb.cps::before{left:0;right:0;top:0;height:3px;width:auto}
 .tb.cps .chk{top:1px;right:3px;font-size:11px}.tb.cpt .chk{font-size:13px;top:3px;right:5px}
 .resetrow{display:flex;justify-content:flex-end;margin:6px 0 4px}.resetb{background:var(--card);border:1px solid var(--line);border-radius:18px;padding:7px 14px;font-weight:600;font-size:13px}
+.vrec{border:1px solid var(--line);border-left:4px solid var(--c);border-radius:10px;padding:9px 11px;margin-bottom:8px}.vh{display:flex;align-items:center;gap:7px;margin-bottom:4px}.ve{font-size:20px}.vh b{font-size:16px}.vv{font-weight:700;color:#FF9F43}.vl{font-size:13px;margin-top:2px}
 .editbar{grid-column:1/-1;display:flex;align-items:center;gap:6px;font-size:12px;color:var(--sub);background:var(--card);border:1px dashed var(--line2);border-radius:10px;padding:6px 8px}.editbar span{flex:1}
 .tb.jig{touch-action:none;animation:jig .35s ease-in-out infinite alternate;-webkit-user-select:none;user-select:none}.tb.jig:nth-child(odd){animation-delay:.15s}
 @keyframes jig{from{transform:rotate(-1.2deg)}to{transform:rotate(1.2deg)}}
@@ -136,7 +137,7 @@ function applyTheme(){let t='dark';try{t=JSON.parse(localStorage.getItem('bl_the
  if(t==='auto')t=matchMedia('(prefers-color-scheme: light)').matches?'light':'dark';
  document.documentElement.dataset.theme=t;const m=document.querySelector('meta[name=theme-color]');if(m)m.content=t==='light'?'#f4f5f7':'#0f1115'}
 applyTheme();
-const APP_VERSION='v1.15';
+const APP_VERSION='v1.15.1';
 const DEFAULT_TYPES=[
  {id:'breast',name:'모유수유',emoji:'🤱',color:'#FFD54A',kind:'duration',enabled:true,feed:true,ends:['sleep'],unit:'ml',presets:[10,20,30,40,60],tags:['왼쪽','오른쪽','양쪽']},
  {id:'formula',name:'분유',emoji:'🍼',color:'#FF9F43',kind:'point',enabled:true,feed:true,ends:['sleep'],unit:'ml',presets:[20,40,60,80,100,120],defaultValue:60},
@@ -635,6 +636,7 @@ function renderChart(p){
    const anchor=[...set.values()][0];const at=anchor?+new Date(anchor.start_at):tt0;
    nearAt(at).forEach(e=>{if(T(e.type).kind!=='duration'||Math.abs(+new Date(e.start_at)-at)<=15*6e4||set.size===0)set.set(String(e.id),e)});
    const list=[...set.values()];
+   if(list.length&&readMode()){viewRecords(list);return}
    if(list.length===1){openEdit(list[0],false);return}
    if(list.length>1){pick(list);return}
    return}
@@ -646,6 +648,7 @@ function renderChart(p){
    return Math.abs(tt-a)<=15*6e4}).sort((a,b)=>Math.abs(tt-new Date(a.start_at))-Math.abs(tt-new Date(b.start_at)));
   const t=addDays(start,i);t.setMinutes(Math.round((py-TOP)/HH*12)*5);
   const addNew=()=>{if(t>new Date()){toast('미래 시각에는 추가할 수 없어요');return}openEdit({type:addType().id,start_at:t.toISOString()},true)};
+  if(readMode()){if(near.length)viewRecords(near);return}
   if(near.length===1){openEdit(near[0],false);return}
   if(near.length>1){
    sheet(`${fmtMD(t)} ${fmtHM(t)} 근처 기록`,h('div',{},near.map(e=>{const ty=T(e.type);
@@ -656,6 +659,19 @@ function renderChart(p){
    return}
   addNew();
  });
+}
+function readMode(){return LS.get('bl_readmode',true)}
+function viewRecords(list){
+ const rows=list.slice().sort((a,b)=>new Date(a.start_at)-new Date(b.start_at)).map(e=>{const ty=T(e.type),st=new Date(e.start_at);
+  let tm=`${fmtMD(st)} ${fmtHM(st)}`;if(ty.kind==='duration')tm+=e.end_at?` – ${fmtHM(e.end_at)} (${ago(new Date(e.end_at)-st)})`:(isOpen(e)?' – 진행 중':'');
+  const val=e.value!=null?`${e.value}${ty.unit||''}`:'';
+  return h('div',{class:'vrec',style:`--c:${ty.color}`},
+   h('div',{class:'vh'},h('span',{class:'ve'},ty.emoji),h('b',{},ty.name),val?h('span',{class:'vv',style:e.type==='temp'?`color:${tempCol(e.value)}`:''},val):null,
+    h('button',{class:'chip',style:'margin-left:auto;padding:6px 12px',onclick:()=>{closeSheet();openEdit(e,false)}},'✏️ 수정')),
+   h('div',{class:'vl'},`🕒 ${tm}`),
+   e.note?h('div',{class:'vl'},`📝 ${e.note}`):null,
+   h('div',{class:'vl',style:'color:var(--sub)'},`👤 ${e.created_by||'?'}${e.created_at?' · 입력 '+fmtMD(e.created_at)+' '+fmtHM(e.created_at):''}`))});
+ sheet(list.length>1?`기록 ${list.length}개`:'기록 보기',h('div',{},rows),[h('button',{class:'btn',onclick:closeSheet},'닫기')]);
 }
 function renderList(p){
  p.append(h('button',{class:'btn wide',onclick:()=>openEdit({type:addType().id,start_at:new Date().toISOString()},true)},'+ 지난 기록 직접 추가'));
@@ -740,6 +756,10 @@ function renderSettings(p){
   p.append(sec('메뉴 버튼 크기 (이 폰에만 적용)',box,
    h('div',{style:'display:flex;gap:8px;margin-top:6px'},h('button',{class:'btn',onclick:()=>{localStorage.removeItem('bl_size');renderButtons();box.replaceChildren(...draw())}},'기본으로')),
    h('div',{class:'hint'},'작게로 한 버튼은 두 개씩 위아래로 묶여요. 위치는 메뉴 버튼을 꾹 눌러서 옮기면 돼요.')));}
+ {const on=readMode();
+  p.append(sec('차트 눌렀을 때 (이 폰에만 적용)',h('div',{class:'chips',style:'margin:0'},[[true,'먼저 보기 (읽기 모드)'],[false,'바로 수정']].map(([v,l])=>
+   h('button',{class:'chip'+(on===v?' big':''),style:on===v?'outline:2px solid #FFD54A':'',onclick:()=>{LS.set('bl_readmode',v);renderTab()}},l))),
+   h('div',{class:'hint'},'읽기 모드에서는 기록 내용만 보여 주고, ✏️ 수정을 눌러야 편집 창이 열려요. 빈 곳을 눌러도 새 기록 창이 뜨지 않아요.')));}
  // 앱 아이콘
  {const curIc=LS.get('bl_icon',null);
   const prev=h('img',{src:curIc||'icon-180.png',style:'width:64px;height:64px;border-radius:15px;object-fit:cover;border:1px solid var(--line)'});
