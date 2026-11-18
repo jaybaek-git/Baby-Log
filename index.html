@@ -118,11 +118,11 @@ function applyTheme(){let t='dark';try{t=JSON.parse(localStorage.getItem('bl_the
  if(t==='auto')t=matchMedia('(prefers-color-scheme: light)').matches?'light':'dark';
  document.documentElement.dataset.theme=t;const m=document.querySelector('meta[name=theme-color]');if(m)m.content=t==='light'?'#f4f5f7':'#0f1115'}
 applyTheme();
-const APP_VERSION='v1.6.3';
+const APP_VERSION='v1.6.4';
 const DEFAULT_TYPES=[
  {id:'breast',name:'모유수유',emoji:'🤱',color:'#FFD54A',kind:'duration',enabled:true,feed:true,ends:['sleep'],tags:['왼쪽','오른쪽','양쪽']},
  {id:'formula',name:'분유',emoji:'🍼',color:'#FF9F43',kind:'point',enabled:true,feed:true,ends:['sleep'],unit:'ml',presets:[20,40,60,80,100,120],defaultValue:60},
- {id:'diaper',name:'기저귀',emoji:'💧',color:'#4DA3FF',kind:'point',enabled:true,ends:['sleep'],tags:['소변','대변','둘다']},
+ {id:'diaper',name:'기저귀',emoji:'🩲',color:'#4DA3FF',kind:'point',enabled:true,ends:['sleep'],tags:['소변','대변','둘다']},
  {id:'sleep',name:'수면',emoji:'😴',color:'#9B7BFF',kind:'duration',enabled:true},
  {id:'bath',name:'목욕',emoji:'🛁',color:'#FFFFFF',kind:'point',enabled:false,marker:true,alsoLog:['diaper'],ends:['sleep']},
  {id:'temp',name:'체온',emoji:'🌡️',color:'#FF6B6B',kind:'point',enabled:false,unit:'°C',presets:[36.5,36.8,37.0,37.5],marker:true},
@@ -453,7 +453,7 @@ function renderChart(p){
   let sl=0;events.filter(e=>e.type==='sleep').forEach(e=>{const a=+new Date(e.start_at);let b=e.end_at?+new Date(e.end_at):(isOpen(e)?now:a);sl+=Math.max(0,Math.min(b,de)-Math.max(a,ds))});
   const ml=events.filter(e=>T(e.type).feed&&T(e.type).unit==='ml'&&e.value!=null&&inDay(e)).reduce((t,e)=>t+Number(e.value),0);
   const cx=x+cw/2,fy0=TOP+CH;
-  s+=`<text x="${cx}" y="${fy0+13}" text-anchor="middle" font-size="10" fill="${CC('txt')}">🍼${feeds}</text><text x="${cx}" y="${fy0+27}" text-anchor="middle" font-size="10" fill="#FF9F43" font-weight="600">${ml?ml+'ml':'-'}</text><text x="${cx}" y="${fy0+41}" text-anchor="middle" font-size="10" fill="${CC('txt')}">💧${dia}</text><text x="${cx}" y="${fy0+55}" text-anchor="middle" font-size="10" fill="${CC('txt')}">😴${(sl/36e5).toFixed(1)}</text>`;
+  s+=`<text x="${cx}" y="${fy0+13}" text-anchor="middle" font-size="10" fill="${CC('txt')}">🍼${feeds}</text><text x="${cx}" y="${fy0+27}" text-anchor="middle" font-size="10" fill="#FF9F43" font-weight="600">${ml?ml+'ml':'-'}</text><text x="${cx}" y="${fy0+41}" text-anchor="middle" font-size="10" fill="${CC('txt')}">${T('diaper').emoji}${dia}</text><text x="${cx}" y="${fy0+55}" text-anchor="middle" font-size="10" fill="${CC('txt')}">😴${(sl/36e5).toFixed(1)}</text>`;
  });
  const pills={};
  if(!hidden.has('_gap')){
