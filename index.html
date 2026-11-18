@@ -107,7 +107,7 @@ function applyTheme(){let t='dark';try{t=JSON.parse(localStorage.getItem('bl_the
  if(t==='auto')t=matchMedia('(prefers-color-scheme: light)').matches?'light':'dark';
  document.documentElement.dataset.theme=t;const m=document.querySelector('meta[name=theme-color]');if(m)m.content=t==='light'?'#f4f5f7':'#0f1115'}
 applyTheme();
-const APP_VERSION='v1.2.2';
+const APP_VERSION='v1.2.3';
 const DEFAULT_TYPES=[
  {id:'breast',name:'모유수유',emoji:'🤱',color:'#FFD54A',kind:'duration',enabled:true,feed:true,tags:['왼쪽','오른쪽','양쪽']},
  {id:'formula',name:'분유',emoji:'🍼',color:'#FF9F43',kind:'point',enabled:true,feed:true,unit:'ml',presets:[20,40,60,80,100,120],defaultValue:60},
@@ -385,9 +385,21 @@ function renderChart(p){
   if(el){const e=events.find(x=>String(x.id)===el.getAttribute('data-id'));if(e)openEdit(e,false);return}
   const r=wrap.firstChild.getBoundingClientRect(),px=ev.clientX-r.left,py=ev.clientY-r.top;
   if(px<AX||py<TOP||py>TOP+CH)return;
-  const i=Math.floor((px-AX)/cw),mins=Math.round((py-TOP)/HH*12)*5,t=addDays(start,i);t.setMinutes(mins);
-  if(t>new Date())return;
-  openEdit({type:firstEnabled().id,start_at:t.toISOString()},true);
+  const i=Math.floor((px-AX)/cw),tt=+addDays(start,i)+(py-TOP)/HH*36e5;
+  const near=events.filter(e=>!hidden.has(e.type)).filter(e=>{const a=+new Date(e.start_at);
+   if(T(e.type).kind==='duration'){const b=e.end_at?+new Date(e.end_at):(isOpen(e)?Date.now():a);return tt>=a-10*6e4&&tt<=b+10*6e4}
+   return Math.abs(tt-a)<=15*6e4}).sort((a,b)=>Math.abs(tt-new Date(a.start_at))-Math.abs(tt-new Date(b.start_at)));
+  const t=addDays(start,i);t.setMinutes(Math.round((py-TOP)/HH*12)*5);
+  const addNew=()=>{if(t>new Date()){toast('미래 시각에는 추가할 수 없어요');return}openEdit({type:firstEnabled().id,start_at:t.toISOString()},true)};
+  if(near.length===1){openEdit(near[0],false);return}
+  if(near.length>1){
+   sheet(`${fmtMD(t)} ${fmtHM(t)} 근처 기록`,h('div',{},near.map(e=>{const ty=T(e.type);
+    let tm=fmtHM(e.start_at);if(ty.kind==='duration')tm+=e.end_at?` – ${fmtHM(e.end_at)}`:(isOpen(e)?' – 진행 중':'');
+    return h('div',{class:'li',style:'margin-bottom:6px',onclick:()=>{closeSheet();openEdit(e,false)}},h('i',{style:`background:${ty.color}`}),
+     h('div',{class:'lm'},h('div',{},`${ty.emoji} ${ty.name}`,e.value!=null?h('span',{class:'v'},` ${e.value}${ty.unit||''}`):null),h('div',{class:'lt'},tm)))})),
+    [h('button',{class:'btn',onclick:()=>{closeSheet();addNew()}},'+ 이 시각에 새 기록')]);
+   return}
+  addNew();
  });
  let sx=null;
  wrap.addEventListener('touchstart',e=>{sx=e.touches[0].clientX},{passive:true});
