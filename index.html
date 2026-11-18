@@ -64,7 +64,7 @@ header h1{font-size:21px;margin:0;flex:1}
 .lg{display:flex;align-items:center;gap:5px;background:var(--card);border:1px solid var(--line);border-radius:20px;padding:3px 9px;font-size:12px}
 .lg i{width:9px;height:9px;border-radius:3px;display:inline-block;box-shadow:0 0 0 1px var(--line2)}
 .lg.off{opacity:.35;text-decoration:line-through}
-.chartwrap{touch-action:pan-y}
+.chartwrap{display:flex;align-items:flex-start}.chax{flex:0 0 24px}.chscroll{flex:1;overflow-x:auto;overflow-y:hidden;-webkit-overflow-scrolling:touch;scrollbar-width:none}.chscroll::-webkit-scrollbar{display:none}.chinner{width:max-content}
 .chartwrap svg{display:block;font-family:inherit}
 .btn{background:var(--btn);border:0;border-radius:10px;padding:10px 14px;font-weight:600}
 .btn.pri{background:#FFD54A;color:#111}.btn.red{background:#e5484d;color:#fff}.btn.wide{width:100%;margin-bottom:10px}
@@ -130,13 +130,14 @@ function applyTheme(){let t='dark';try{t=JSON.parse(localStorage.getItem('bl_the
  if(t==='auto')t=matchMedia('(prefers-color-scheme: light)').matches?'light':'dark';
  document.documentElement.dataset.theme=t;const m=document.querySelector('meta[name=theme-color]');if(m)m.content=t==='light'?'#f4f5f7':'#0f1115'}
 applyTheme();
-const APP_VERSION='v1.8';
+const APP_VERSION='v1.9';
 const DEFAULT_TYPES=[
  {id:'breast',name:'모유수유',emoji:'🤱',color:'#FFD54A',kind:'duration',enabled:true,feed:true,ends:['sleep'],tags:['왼쪽','오른쪽','양쪽']},
  {id:'formula',name:'분유',emoji:'🍼',color:'#FF9F43',kind:'point',enabled:true,feed:true,ends:['sleep'],unit:'ml',presets:[20,40,60,80,100,120],defaultValue:60},
  {id:'diaper',name:'기저귀',emoji:'🩲',color:'#4DA3FF',kind:'point',enabled:true,ends:['sleep'],tags:['소변','대변','둘다']},
  {id:'sleep',name:'수면',emoji:'😴',color:'#9B7BFF',kind:'duration',enabled:true},
  {id:'bath',name:'목욕',emoji:'🛁',color:'#FFFFFF',kind:'point',enabled:false,marker:true,alsoLog:['diaper'],ends:['sleep']},
+ {id:'weight',name:'체중',emoji:'⚖️',color:'#90A4AE',kind:'point',enabled:true,unit:'kg',marker:true,daily:true},
  {id:'temp',name:'체온',emoji:'🌡️',color:'#FF6B6B',kind:'point',enabled:false,unit:'°C',presets:[36.5,36.8,37.0,37.5],marker:true,small:true},
  {id:'vitamin',name:'비타민',emoji:'💊',color:'#4CD97B',kind:'point',enabled:false,marker:true,small:true},
  {id:'tummy',name:'터미타임',emoji:'🐢',color:'#2EC4B6',kind:'duration',enabled:false},
@@ -162,9 +163,10 @@ const uid=()=>(crypto.randomUUID?crypto.randomUUID():'l'+Date.now().toString(36)
 
 let dev=LS.get('bl_dev',{url:'',key:'',code:'',who:''});
 let config=mergeDefaults(LS.get('bl_config',null)||{babyName:'',types:JSON.parse(JSON.stringify(DEFAULT_TYPES))});
-let swipeBusy=false,openSw=null,alarmInfo=null;
+let swipeBusy=false,openSw=null,alarmInfo=null,chartDays=21,chartFromRight=0,chartLoading=false;
+const chartStart=()=>addDays(dayStart(new Date()),-(chartDays-1));
 let events=[],weekOffset=0,tab='chart',hidden=new Set(LS.get('bl_hidden',[]));
-function mergeDefaults(c){c.types=c.types||[];c.alarm={...DEFAULT_ALARM,...(c.alarm||{})};c.types.forEach(t=>{const d=DEFAULT_TYPES.find(x=>x.id===t.id);if(d&&t.marker===undefined&&d.marker)t.marker=true;if(d&&t.small===undefined&&d.small)t.small=true;if(d&&t.alsoLog===undefined&&d.alsoLog)t.alsoLog=[...d.alsoLog];if(d&&t.ends===undefined&&d.ends)t.ends=[...d.ends];if(d&&t.defaultValue===undefined&&d.defaultValue!=null)t.defaultValue=d.defaultValue});const ids=new Set(c.types.map(t=>t.id));DEFAULT_TYPES.forEach(d=>{if(!ids.has(d.id))c.types.push({...d,enabled:false})});return c}
+function mergeDefaults(c){c.types=c.types||[];c.remind={enabled:true,start:'09:00',end:'21:00',every:2,items:['vitamin','temp','weight'],call:'',...(c.remind||{})};c.alarm={...DEFAULT_ALARM,...(c.alarm||{})};c.types.forEach(t=>{const d=DEFAULT_TYPES.find(x=>x.id===t.id);if(d&&t.marker===undefined&&d.marker)t.marker=true;if(d&&t.small===undefined&&d.small)t.small=true;if(d&&t.alsoLog===undefined&&d.alsoLog)t.alsoLog=[...d.alsoLog];if(d&&t.ends===undefined&&d.ends)t.ends=[...d.ends];if(d&&t.defaultValue===undefined&&d.defaultValue!=null)t.defaultValue=d.defaultValue});const ids=new Set(c.types.map(t=>t.id));DEFAULT_TYPES.forEach(d=>{if(!ids.has(d.id))c.types.push({...d,enabled:false})});return c}
 const T=id=>config.types.find(t=>t.id===id)||{id,name:id,emoji:'•',color:'#888',kind:'point'};
 const appTitle=()=>config.title||(config.babyName?`${config.babyName} 기록`:'아기 기록');
 const addType=()=>config.types.find(t=>t.id==='formula'&&t.enabled)||firstEnabled();
@@ -241,7 +243,7 @@ function weekRange(){const end=addDays(dayStart(new Date()),1-7*weekOffset);retu
 let refreshing=0;
 async function refresh(){
  const my=++refreshing;const {start,end}=weekRange();const now=Date.now();
- const from=new Date(Math.min(+start,now-3*864e5)),to=new Date(Math.max(+end,now+36e5));
+ const from=new Date(Math.min(+start,+chartStart(),now-3*864e5)),to=new Date(Math.max(+end,now+36e5));
  try{const ev=await store.list(from,to);if(my!==refreshing)return;events=ev;setSync(remote()?'ok':'local');
   if(remote()){try{alarmInfo=await rpc('alarm_status',{p_code:dev.code})}catch(e){alarmInfo=null}
    if(tab!=='settings')try{const c=await rpc('get_config',{p_code:dev.code});if(c&&c.types&&JSON.stringify(c)!==JSON.stringify(config)){config=mergeDefaults(c);LS.set('bl_config',config)}}catch(e){}}else alarmInfo=null}
@@ -449,7 +451,7 @@ function renderTab(){
  try{renderTabInner(p)}finally{p.style.minHeight='';if(Math.abs(window.scrollY-sy)>1)window.scrollTo(0,sy)}
  lastSig=tabSig();
 }
-function tabSig(){return tab+'|'+weekOffset+'|'+[...hidden].join()+'|'+(document.documentElement.dataset.theme||'')+'|'+Math.floor(Date.now()/3e5)+'|'+JSON.stringify(config.types)+'|'+JSON.stringify(events)}
+function tabSig(){return tab+'|'+chartDays+'|'+[...hidden].join()+'|'+(document.documentElement.dataset.theme||'')+'|'+Math.floor(Date.now()/3e5)+'|'+JSON.stringify(config.types)+'|'+JSON.stringify(events)}
 function renderTabInner(p){
  document.querySelectorAll('.tabs button').forEach(b=>b.classList.toggle('a',b.dataset.t===tab));
  if(tab==='chart')renderChart(p);else if(tab==='list')renderList(p);else renderSettings(p);
@@ -464,27 +466,27 @@ function diaperPath(cx,cy,r){const R=r*1.15,f=v=>v.toFixed(1);
  return `M${f(cx-R)} ${f(cy-R*.62)}L${f(cx+R)} ${f(cy-R*.62)}L${f(cx+R*.82)} ${f(cy+R*.05)}Q${f(cx+R*.32)} ${f(cy+R*.18)} ${f(cx+R*.2)} ${f(cy+R*.72)}L${f(cx-R*.2)} ${f(cy+R*.72)}Q${f(cx-R*.32)} ${f(cy+R*.18)} ${f(cx-R*.82)} ${f(cy+R*.05)}Z`}
 function starPath(cx,cy,r){let d='';for(let i=0;i<10;i++){const a=-Math.PI/2+i*Math.PI/5,rr=i%2?r*0.45:r;d+=(i?'L':'M')+(cx+rr*Math.cos(a)).toFixed(1)+' '+(cy+rr*Math.sin(a)).toFixed(1)}return d+'Z'}
 function renderChart(p){
- const {start}=weekRange();const days=[...Array(7)].map((_,i)=>addDays(start,i));
- const nav=h('div',{class:'nav'},
-  h('button',{onclick:()=>{weekOffset++;refresh()}},'◀'),
-  h('div',{class:'nav-t'},`${fmtMD(days[0])} – ${fmtMD(days[6])}`),
-  weekOffset>0?h('button',{onclick:()=>{weekOffset=0;refresh()}},'오늘'):null,
-  h('button',{disabled:weekOffset===0,onclick:()=>{weekOffset=Math.max(0,weekOffset-1);refresh()}},'▶'));
+ const start=chartStart(),N=chartDays,days=[...Array(N)].map((_,i)=>addDays(start,i));
+ const navT=h('div',{class:'nav-t'},'');
+ const nav=h('div',{class:'nav'},navT,h('button',{onclick:()=>{const sc=wrap.querySelector('.chscroll');sc.scrollTo({left:sc.scrollWidth,behavior:'smooth'})}},'오늘 ▶'));
  const used=new Set(events.map(e=>e.type));
  const lg=h('div',{class:'legend'},config.types.filter(t=>t.enabled||used.has(t.id)).map(t=>h('button',{class:'lg'+(hidden.has(t.id)?' off':''),
   onclick:()=>{hidden.has(t.id)?hidden.delete(t.id):hidden.add(t.id);LS.set('bl_hidden',[...hidden]);renderTab()}},t.id==='bath'?(()=>{const sp=h('span',{style:'display:inline-flex'});sp.innerHTML=`<svg width="16" height="14" viewBox="0 0 16 14">${tubSvg(8,7.5,t.color,'#444')}</svg>`;return sp})():t.id==='diaper'?(()=>{const sp=h('span',{style:'display:inline-flex;gap:1px'});sp.innerHTML=[POO,PEE].map(c=>`<svg width="13" height="11" viewBox="0 0 14 12"><path d="${diaperPath(7,6,5)}" fill="${c}" stroke="#444" stroke-width=".6"/></svg>`).join('');return sp})():h('i',{style:`background:${t.color}`}),t.id==='diaper'?'기저귀 (응가·쉬)':t.name)),
   h('button',{class:'lg'+(hidden.has('_gap')?' off':''),onclick:()=>{hidden.has('_gap')?hidden.delete('_gap'):hidden.add('_gap');LS.set('bl_hidden',[...hidden]);renderTab()}},h('i',{style:'background:none;box-shadow:none;border-left:2px dotted #FFD54A;width:2px;height:10px;border-radius:0'}),'수유 간격'));
  const wrap=h('div',{class:'chartwrap'});p.append(nav,lg,wrap);
- const W=Math.max(300,wrap.clientWidth||p.clientWidth||360);
- const AX=24,TOP=30,HH=22,CH=24*HH,FOOT=60,cw=(W-AX)/7,H=TOP+CH+FOOT,now=Date.now(),today=+dayStart(new Date());
+ const VW=Math.max(300,wrap.clientWidth||p.clientWidth||360),AXW=24;
+ const AX=0,TOP=30,HH=22,CH=24*HH,FOOT=88,cw=(VW-AXW)/7,W=N*cw,H=TOP+CH+FOOT,now=Date.now(),today=+dayStart(new Date());
  const CC=k=>getComputedStyle(document.documentElement).getPropertyValue('--ch-'+k).trim();
+ let ax=`<svg width="${AXW}" height="${H}" viewBox="0 0 ${AXW} ${H}">`;
+ for(let hr=0;hr<=24;hr+=3)ax+=`<text x="${AXW-4}" y="${TOP+hr*HH+3}" text-anchor="end" font-size="9" fill="${CC('ax')}">${hr}</text>`;
+ ax+='</svg>';
  let s=`<svg width="${W}" height="${H}" viewBox="0 0 ${W} ${H}" xmlns="http://www.w3.org/2000/svg">`;
  days.forEach((d,i)=>{const x=AX+i*cw,isT=+d===today,we=d.getDay(),col=we===0?CC('sun'):we===6?CC('sat'):CC('txt');
   s+=`<rect x="${x+1}" y="${TOP}" width="${cw-2}" height="${CH}" rx="4" fill="${isT?CC('today'):CC('col')}" ${isT?`stroke="${CC('todayb')}"`:''}/>`;
   s+=`<text x="${x+cw/2}" y="12" text-anchor="middle" font-size="11" fill="${col}" font-weight="${isT?700:500}">${WD[we]}</text><text x="${x+cw/2}" y="25" text-anchor="middle" font-size="10" fill="${CC('sub')}">${fmtMD(d)}</text>`});
  for(let hr=0;hr<=24;hr++){const y=TOP+hr*HH,m=hr%3===0;
   s+=`<line x1="${AX}" x2="${W}" y1="${y}" y2="${y}" stroke="${m?CC('grid'):CC('grid2')}" stroke-width="${m?1:.6}"/>`;
-  if(m)s+=`<text x="${AX-4}" y="${y+3}" text-anchor="end" font-size="9" fill="${CC('ax')}">${hr}</text>`}
+}
  const vis=events.filter(e=>!hidden.has(e.type));
  const isMk=e=>!!T(e.type).marker,isMoon=e=>false;
  const main=vis.filter(e=>!isMk(e)&&!isMoon(e)),mks=vis.filter(isMk),moons=vis.filter(isMoon);
@@ -530,12 +532,15 @@ function renderChart(p){
   const ml=events.filter(e=>T(e.type).feed&&T(e.type).unit==='ml'&&e.value!=null&&inDay(e)).reduce((t,e)=>t+Number(e.value),0);
   const cx=x+cw/2,fy0=TOP+CH;
   s+=`<text x="${cx}" y="${fy0+13}" text-anchor="middle" font-size="10" fill="${CC('txt')}">🍼${feeds}</text><text x="${cx}" y="${fy0+27}" text-anchor="middle" font-size="10" fill="#FF9F43" font-weight="600">${ml?ml+'ml':'-'}</text><text x="${cx}" y="${fy0+41}" text-anchor="middle" font-size="10" fill="${CC('txt')}">${T('diaper').emoji}${dia}</text><text x="${cx}" y="${fy0+55}" text-anchor="middle" font-size="10" fill="${CC('txt')}">😴${(sl/36e5).toFixed(1)}</text>`;
+  const lastV=id=>events.filter(e=>e.type===id&&e.value!=null&&inDay(e)).sort((a,b)=>new Date(b.start_at)-new Date(a.start_at))[0];
+  const tv=lastV('temp'),wv=lastV('weight');
+  s+=`<text x="${cx}" y="${fy0+69}" text-anchor="middle" font-size="10" fill="${tv?T('temp').color:CC('ax')}" font-weight="${tv?600:400}">${tv?'🌡'+tv.value:'🌡-'}</text><text x="${cx}" y="${fy0+83}" text-anchor="middle" font-size="10" fill="${wv?CC('txt'):CC('ax')}" font-weight="${wv?600:400}">${wv?'⚖'+wv.value:'⚖-'}</text>`;
  });
  const pills={};
  if(!hidden.has('_gap')){
   const fs=events.filter(e=>T(e.type).feed&&!isOpen(e)).map(e=>{const a=+new Date(e.start_at);return {s:a,e:T(e.type).kind==='duration'?(e.end_at?+new Date(e.end_at):a):a}}).sort((p,q)=>p.s-q.s);
   const ses=[];fs.forEach(f=>{const g=ses[ses.length-1];if(g&&f.s<=g.e+30*6e4)g.e=Math.max(g.e,f.e);else ses.push({s:f.s,e:f.e})});
-  const r0=+days[0],r1=+days[6]+864e5;
+  const r0=+days[0],r1=+days[N-1]+864e5;
   for(let k=1;k<ses.length;k++){const a=ses[k-1].e,b=ses[k].s,gap=b-a;if(gap<20*6e4||gap>8*36e5||b<r0||a>r1)continue;
    days.forEach((d,i)=>{const ds=+d,de=ds+864e5;if(b<=ds||a>=de)return;const x=AX+i*cw,y0=fy(Math.max(a,ds),ds),y1=fy(Math.min(b,de),ds);
     s+=`<line x1="${x+cw/2}" x2="${x+cw/2}" y1="${y0+5}" y2="${y1-5}" stroke="#FFD54A" stroke-opacity=".55" stroke-width="1.5" stroke-dasharray="2 3"/>`;
@@ -558,7 +563,13 @@ function renderChart(p){
   if(ti>=0)s+=`<line x1="${tx}" x2="${tx+cw}" y1="${ny}" y2="${ny}" stroke="#ff5252" stroke-width="2"/><circle cx="${tx+2}" cy="${ny}" r="3" fill="#ff5252"/>`;
   const lx=ti>=0?Math.min(W-2,tx+cw-2):W-2;
   s+=`<text x="${lx}" y="${ny+12}" text-anchor="end" font-size="10" fill="#ff8a80" font-weight="600">${fmtHM(nd)}</text>`;}
- s+='</svg>';wrap.innerHTML=s;
+ s+='</svg>';
+ wrap.innerHTML=`<div class="chax">${ax}</div><div class="chscroll"><div class="chinner">${s}</div></div>`;
+ const sc=wrap.querySelector('.chscroll'),svgEl=sc.querySelector('svg');
+ const updT=()=>{const i0=Math.max(0,Math.floor(sc.scrollLeft/cw+.05)),i1=Math.min(N-1,i0+6);navT.textContent=`${fmtMD(days[i0])} – ${fmtMD(days[i1])}`};
+ requestAnimationFrame(()=>{sc.scrollLeft=Math.max(0,sc.scrollWidth-sc.clientWidth-chartFromRight);updT()});
+ sc.addEventListener('scroll',()=>{chartFromRight=sc.scrollWidth-sc.clientWidth-sc.scrollLeft;updT();lastScroll=Date.now();
+  if(sc.scrollLeft<cw*3&&!chartLoading&&chartDays<400){chartLoading=true;chartDays+=14;refresh().finally(()=>{chartLoading=false})}},{passive:true});
  wrap.addEventListener('click',ev=>{
   const el=ev.target.closest('[data-id]');
   if(el){const ids=el.getAttribute('data-id').split('|'),es=ids.map(id=>events.find(x=>String(x.id)===id)).filter(Boolean);
@@ -566,7 +577,7 @@ function renderChart(p){
    if(es.length>1){sheet('어느 기록을 수정할까요?',h('div',{},es.map(e=>{const ty=T(e.type);let tm=fmtHM(e.start_at);if(ty.kind==='duration'&&e.end_at)tm+=` – ${fmtHM(e.end_at)}`;
      return h('div',{class:'li',style:'margin-bottom:6px',onclick:()=>{closeSheet();openEdit(e,false)}},h('i',{style:`background:${ty.color}`}),h('div',{class:'lm'},h('div',{},`${ty.emoji} ${ty.name}`,e.value!=null?h('span',{class:'v'},` ${e.value}${ty.unit||''}`):null),h('div',{class:'lt'},tm)))})),[]);return}
    return}
-  const r=wrap.firstChild.getBoundingClientRect(),px=ev.clientX-r.left,py=ev.clientY-r.top;
+  const r=svgEl.getBoundingClientRect(),px=ev.clientX-r.left,py=ev.clientY-r.top;
   if(px<AX||py<TOP||py>TOP+CH)return;
   const i=Math.floor((px-AX)/cw),tt=+addDays(start,i)+(py-TOP)/HH*36e5;
   const near=events.filter(e=>!hidden.has(e.type)).filter(e=>{const a=+new Date(e.start_at);
@@ -584,10 +595,6 @@ function renderChart(p){
    return}
   addNew();
  });
- let sx=null;
- wrap.addEventListener('touchstart',e=>{sx=e.touches[0].clientX},{passive:true});
- wrap.addEventListener('touchend',e=>{if(sx==null)return;const dx=e.changedTouches[0].clientX-sx;sx=null;
-  if(dx>60){weekOffset++;refresh()}else if(dx<-60&&weekOffset>0){weekOffset--;refresh()}});
 }
 function renderList(p){
  p.append(h('button',{class:'btn wide',onclick:()=>openEdit({type:addType().id,start_at:new Date().toISOString()},true)},'+ 지난 기록 직접 추가'));
@@ -706,6 +713,7 @@ function renderSettings(p){
    h('div',{class:'hint'},'예) 5분 단위면 21:52 → 21:50, 21:53 → 21:55 로 기록돼요. 버튼·단축어·직접 입력 모두 적용되고, 이미 있던 기록은 바뀌지 않아요.')));}
  // 수유 알림
  p.append(renderAlarmSettings());
+ p.append(renderRemindSettings());
  // 항목
  const draft=JSON.parse(JSON.stringify(config));
  const baby=inp(appTitle(),'예: 엘리 기록');let titleT;
@@ -820,6 +828,27 @@ async function pushState(){
  if(!('serviceWorker' in navigator)||!('PushManager' in window))return '미지원 (홈 화면 앱에서 열어 주세요)';
  try{const reg=await navigator.serviceWorker.getRegistration();const sub=reg&&await reg.pushManager.getSubscription();
   return sub?'✅ 이 폰은 알림을 받고 있어요':'이 폰은 아직 알림 등록 전이에요'}catch(e){return '확인 불가'}
+}
+function renderRemindSettings(){
+ const r={...config.remind};
+ const en=h('input',{type:'checkbox',checked:!!r.enabled,style:'width:22px;height:22px'});
+ const st=h('input',{type:'time',value:r.start}),ed=h('input',{type:'time',value:r.end});
+ const call=h('input',{type:'text',value:r.call||'',placeholder:'예: 예린이'});
+ let every=+r.every||2,items=new Set(r.items||[]);
+ const evRow=h('div',{class:'chips',style:'margin:0 0 10px'});
+ const drawEv=()=>evRow.replaceChildren(...[1,2,3,4].map(n=>h('button',{class:'chip'+(every===n?' big':''),style:every===n?'outline:2px solid #FFD54A':'',onclick:()=>{every=n;drawEv()}},`${n}시간마다`)));drawEv();
+ const itRow=h('div',{class:'chips',style:'margin:0 0 10px'});
+ const drawIt=()=>itRow.replaceChildren(...config.types.filter(t=>t.kind!=='duration'&&!t.feed&&t.id!=='diaper').map(t=>{const on=items.has(t.id);
+  return h('button',{class:'chip',style:on?`outline:2px solid ${t.color}`:'opacity:.55',onclick:()=>{on?items.delete(t.id):items.add(t.id);drawIt()}},(on?'✓ ':'')+t.emoji+' '+t.name)}));drawIt();
+ return sec('챙기기 알림 (오늘 아직 안 했으면)',
+  h('label',{class:'fld',style:'display:flex;align-items:center;gap:8px'},en,h('span',{style:'margin:0;font-size:15px;color:var(--txt)'},'알림 켜기')),
+  h('div',{class:'hint',style:'margin-top:0'},'챙길 항목'),itRow,
+  h('div',{style:'display:flex;gap:8px'},h('div',{style:'flex:1'},field('시작',st)),h('div',{style:'flex:1'},field('끝',ed))),
+  h('div',{class:'hint',style:'margin-top:0'},'알림 간격 (시작 시각부터)'),evRow,
+  field('알림에 부를 이름',call),
+  h('button',{class:'btn pri',onclick:async()=>{config.remind={enabled:en.checked,start:st.value||'09:00',end:ed.value||'21:00',every,items:[...items],call:call.value.trim()};
+   try{await saveConfig();toast('챙기기 알림 저장됨')}catch(e){alert('저장 실패: '+e.message)}}},'저장'),
+  h('div',{class:'hint'},'예) 09:00~21:00, 2시간마다 → 9시·11시·13시… 에 오늘 아직 기록이 없는 항목만 모아서 두 폰에 알려요.\n"엄마·아빠, 예린이 비타민 주세요! 💊"'));
 }
 function renderAlarmSettings(){
  if(!remote())return sec('수유 알림',h('div',{class:'hint'},'알림은 동기화 모드(Supabase 연결)에서만 동작해요.'));
