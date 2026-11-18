@@ -1,6 +1,6 @@
 -- =====================================================================
 --  아기 기록 v1.11 — 체온이 정상 범위를 벗어나면 두 폰에 바로 알림
---  범위: app_config.data.tempRange {min, max} (기본 36.5 ~ 37.5)
+--  범위: app_config.data.tempRange {min, max} (기본 36.4 ~ 37.8)
 -- =====================================================================
 create or replace function public._temp_alert() returns trigger
 language plpgsql security definer set search_path = public, extensions as $$
@@ -10,8 +10,8 @@ begin
   if coalesce(current_setting('babylog.skip_also', true), '') = '1' then return new; end if;
   if tg_op = 'UPDATE' and old.value is not distinct from new.value then return new; end if;
   select data into cfg from app_config where id = 1;
-  v_min := coalesce((cfg->'tempRange'->>'min')::numeric, 36.5);
-  v_max := coalesce((cfg->'tempRange'->>'max')::numeric, 37.5);
+  v_min := coalesce((cfg->'tempRange'->>'min')::numeric, 36.4);
+  v_max := coalesce((cfg->'tempRange'->>'max')::numeric, 37.8);
   if new.value >= v_min and new.value <= v_max then return new; end if;
   v_call := coalesce(nullif(cfg->'remind'->>'call', ''), '아기');
   v_body := format('정상 범위 %s~%s℃ %s · %s 기록', v_min, v_max,
