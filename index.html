@@ -118,7 +118,7 @@ function applyTheme(){let t='dark';try{t=JSON.parse(localStorage.getItem('bl_the
  if(t==='auto')t=matchMedia('(prefers-color-scheme: light)').matches?'light':'dark';
  document.documentElement.dataset.theme=t;const m=document.querySelector('meta[name=theme-color]');if(m)m.content=t==='light'?'#f4f5f7':'#0f1115'}
 applyTheme();
-const APP_VERSION='v1.6.4';
+const APP_VERSION='v1.6.5';
 const DEFAULT_TYPES=[
  {id:'breast',name:'모유수유',emoji:'🤱',color:'#FFD54A',kind:'duration',enabled:true,feed:true,ends:['sleep'],tags:['왼쪽','오른쪽','양쪽']},
  {id:'formula',name:'분유',emoji:'🍼',color:'#FF9F43',kind:'point',enabled:true,feed:true,ends:['sleep'],unit:'ml',presets:[20,40,60,80,100,120],defaultValue:60},
@@ -401,6 +401,8 @@ function renderTabInner(p){
 }
 const POO='#9C6B3C',PEE='#7FD3FF';
 function diaperColor(e){const n=e.note||'';if(/대변|둘다|응가|똥/.test(n))return POO;if(/소변|쉬/.test(n))return PEE;return T('diaper').color}
+function diaperPath(cx,cy,r){const R=r*1.15,f=v=>v.toFixed(1);
+ return `M${f(cx-R)} ${f(cy-R*.62)}L${f(cx+R)} ${f(cy-R*.62)}L${f(cx+R*.82)} ${f(cy+R*.05)}Q${f(cx+R*.32)} ${f(cy+R*.18)} ${f(cx+R*.2)} ${f(cy+R*.72)}L${f(cx-R*.2)} ${f(cy+R*.72)}Q${f(cx-R*.32)} ${f(cy+R*.18)} ${f(cx-R*.82)} ${f(cy+R*.05)}Z`}
 function starPath(cx,cy,r){let d='';for(let i=0;i<10;i++){const a=-Math.PI/2+i*Math.PI/5,rr=i%2?r*0.45:r;d+=(i?'L':'M')+(cx+rr*Math.cos(a)).toFixed(1)+' '+(cy+rr*Math.sin(a)).toFixed(1)}return d+'Z'}
 function renderChart(p){
  const {start}=weekRange();const days=[...Array(7)].map((_,i)=>addDays(start,i));
@@ -411,7 +413,7 @@ function renderChart(p){
   h('button',{disabled:weekOffset===0,onclick:()=>{weekOffset=Math.max(0,weekOffset-1);refresh()}},'▶'));
  const used=new Set(events.map(e=>e.type));
  const lg=h('div',{class:'legend'},config.types.filter(t=>t.enabled||used.has(t.id)).map(t=>h('button',{class:'lg'+(hidden.has(t.id)?' off':''),
-  onclick:()=>{hidden.has(t.id)?hidden.delete(t.id):hidden.add(t.id);LS.set('bl_hidden',[...hidden]);renderTab()}},t.id==='diaper'?h('span',{style:'font-size:11px'},h('span',{style:`color:${POO}`},'★'),h('span',{style:`color:${PEE}`},'★')):h('i',{style:`background:${t.color}`}),t.id==='diaper'?'기저귀 (응가·쉬)':t.name)),
+  onclick:()=>{hidden.has(t.id)?hidden.delete(t.id):hidden.add(t.id);LS.set('bl_hidden',[...hidden]);renderTab()}},t.id==='diaper'?(()=>{const sp=h('span',{style:'display:inline-flex;gap:1px'});sp.innerHTML=[POO,PEE].map(c=>`<svg width="13" height="11" viewBox="0 0 14 12"><path d="${diaperPath(7,6,5)}" fill="${c}" stroke="#444" stroke-width=".6"/></svg>`).join('');return sp})():h('i',{style:`background:${t.color}`}),t.id==='diaper'?'기저귀 (응가·쉬)':t.name)),
   h('button',{class:'lg'+(hidden.has('_gap')?' off':''),onclick:()=>{hidden.has('_gap')?hidden.delete('_gap'):hidden.add('_gap');LS.set('bl_hidden',[...hidden]);renderTab()}},h('i',{style:'background:none;box-shadow:none;border-left:2px dotted #FFD54A;width:2px;height:10px;border-radius:0'}),'수유 간격'));
  const wrap=h('div',{class:'chartwrap'});p.append(nav,lg,wrap);
  const W=Math.max(300,wrap.clientWidth||p.clientWidth||360);
@@ -442,7 +444,7 @@ function renderChart(p){
     if(t.kind==='duration'){const y0=fy(o.s,ds),y1=fy(o.t,ds),op=isOpen(e);
      s+=`<rect data-id="${esc(e.id)}" x="${lx}" y="${y0}" width="${ww}" height="${Math.max(6,y1-y0)}" rx="3" fill="${t.color}" fill-opacity="${op?.45:.85}"${op?` stroke="${t.color}" stroke-dasharray="3 2"`:''}/>`}
     else{const y=fy(o.s,ds);
-     if(e.type==='diaper'){const c=diaperColor(e),r=Math.min(7,ww/2);s+=`<path d="${starPath(lx+ww/2,y,r)}" fill="${c}" stroke="${CC('mk')}" stroke-width="0.8"/>`}
+     if(e.type==='diaper'){const c=diaperColor(e),r=Math.min(7,ww/2);s+=`<path d="${diaperPath(lx+ww/2,y,r)}" fill="${c}" stroke="${CC('mk')}" stroke-width="0.8" stroke-linejoin="round"/><line x1="${lx+ww/2-r*1.05}" x2="${lx+ww/2+r*1.05}" y1="${y-r*0.45}" y2="${y-r*0.45}" stroke="${CC('mk')}" stroke-width="0.7" stroke-opacity=".6"/>`}
      else s+=`<rect x="${lx}" y="${y-4}" width="${ww}" height="8" rx="2" fill="${t.color}"/>`;
      s+=`<rect data-id="${esc(e.id)}" x="${lx}" y="${y-9}" width="${ww}" height="18" fill="transparent"/>`}
    })});
