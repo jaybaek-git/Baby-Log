@@ -23,6 +23,8 @@ body{padding:calc(env(safe-area-inset-top) + 10px) 12px calc(env(safe-area-inset
 button,input,select,textarea{font:inherit;color:inherit}
 header{display:flex;align-items:center;gap:8px;margin-bottom:10px}
 header h1{font-size:21px;margin:0;flex:1}
+.hb{background:var(--card);border:1px solid var(--line);border-radius:10px;width:38px;height:34px;font-size:18px;font-weight:700}
+.hb:disabled{opacity:.3}
 .sync{font-size:12px;color:var(--sub);display:flex;align-items:center;gap:5px}
 .dot{width:8px;height:8px;border-radius:50%;background:#666}
 .status{display:flex;gap:8px;overflow-x:auto;padding-bottom:4px;margin-bottom:10px;scrollbar-width:none}
@@ -100,7 +102,7 @@ header h1{font-size:21px;margin:0;flex:1}
 </style>
 </head>
 <body>
-<header><h1 id="title">아기 기록</h1><div class="sync"><span class="dot" id="dot"></span><span id="synctxt">로컬</span></div></header>
+<header><h1 id="title">아기 기록</h1><button class="hb" id="undoB" disabled onclick="undoLast()" aria-label="되돌리기">↶</button><button class="hb" id="redoB" disabled onclick="redoLast()" aria-label="다시 실행">↷</button><div class="sync"><span class="dot" id="dot"></span><span id="synctxt">로컬</span></div></header>
 <div class="status" id="status"></div>
 <div class="btns" id="btns"></div>
 <div class="tabs"><button data-t="chart" class="a">차트</button><button data-t="list">목록</button><button data-t="settings">설정</button></div>
@@ -111,7 +113,7 @@ function applyTheme(){let t='dark';try{t=JSON.parse(localStorage.getItem('bl_the
  if(t==='auto')t=matchMedia('(prefers-color-scheme: light)').matches?'light':'dark';
  document.documentElement.dataset.theme=t;const m=document.querySelector('meta[name=theme-color]');if(m)m.content=t==='light'?'#f4f5f7':'#0f1115'}
 applyTheme();
-const APP_VERSION='v1.4.1';
+const APP_VERSION='v1.5';
 const DEFAULT_TYPES=[
  {id:'breast',name:'모유수유',emoji:'🤱',color:'#FFD54A',kind:'duration',enabled:true,feed:true,ends:['sleep'],tags:['왼쪽','오른쪽','양쪽']},
  {id:'formula',name:'분유',emoji:'🍼',color:'#FF9F43',kind:'point',enabled:true,feed:true,ends:['sleep'],unit:'ml',presets:[20,40,60,80,100,120],defaultValue:60},
@@ -256,39 +258,62 @@ function renderButtons(){
  }));
 }
 async function onTap(t){
+ const act=beginAct(`${t.emoji} ${t.name}`);
  try{
   const willEnd=events.filter(e=>(t.ends||[]).includes(e.type)&&isOpen(e));
   const endTxt=willEnd.length?' · '+willEnd.map(e=>T(e.type).emoji+' '+T(e.type).name+' 끝').join(', '):'';
   const reopen=async()=>{for(const x of willEnd)await store.update({...x,end_at:null})};
   if(t.kind==='duration'){
-   const r=await store.toggle(t.id);const ev=r.event;await refresh();
+   const r=await store.toggle(t.id);const ev=r.event;await refresh();act.label+=r.action==='start'?' 시작':' 종료';commitAct(act);
    toast(`${t.emoji} ${t.name} ${r.action==='start'?'시작':'종료'} ${fmtHM(new Date())}${r.action==='stop'?' · '+ago(new Date(ev.end_at)-new Date(ev.start_at)):''}${r.action==='start'?endTxt:''}`,
-    {tags:r.action==='start'?t.tags:null,ev,shift:{field:r.action==='start'?'start_at':'end_at',base:r.action==='start'?ev.start_at:ev.end_at,label:`${t.name} ${r.action==='start'?'시작':'종료'}`,closed:r.action==='start'?willEnd:[]},undo:async()=>{if(r.action==='start'){await store.remove(ev.id);await reopen()}else await store.update({...ev,end_at:null});await refresh()}});
+    {tags:r.action==='start'?t.tags:null,ev,shift:{field:r.action==='start'?'start_at':'end_at',base:r.action==='start'?ev.start_at:ev.end_at,label:`${t.name} ${r.action==='start'?'시작':'종료'}`,closed:r.action==='start'?willEnd:[]},undo:undoLast});
    return;
   }
   if(t.unit||t.askNote){openQuick(t);return}
-  const ev=await store.add({type:t.id,start_at:new Date().toISOString()});await refresh();
+  const ev=await store.add({type:t.id,start_at:new Date().toISOString()});await refresh();commitAct(act);
   const linked=(t.alsoLog||[]).map(l=>T(l));
-  toast(`${t.emoji} ${t.name} 기록 ${fmtHM(ev.start_at)}${linked.length?' + '+linked.map(x=>x.emoji+' '+x.name).join(', '):''}${endTxt}`,{tags:t.tags,ev,shift:{field:'start_at',base:ev.start_at,label:t.name,linkNote:linked.length?t.name+' 때 함께':null,closed:willEnd},undo:async()=>{
-   await store.remove(ev.id);await reopen();
-   for(const x of events.filter(x=>x.start_at===ev.start_at&&x.note===t.name+' 때 함께'))await store.remove(x.id);
-   await refresh()}});
+  toast(`${t.emoji} ${t.name} 기록 ${fmtHM(ev.start_at)}${linked.length?' + '+linked.map(x=>x.emoji+' '+x.name).join(', '):''}${endTxt}`,{tags:t.tags,ev,shift:{field:'start_at',base:ev.start_at,label:t.name,linkNote:linked.length?t.name+' 때 함께':null,closed:willEnd},undo:undoLast});
  }catch(e){alert('기록 실패: '+e.message)}
 }
+// ===== 되돌리기 / 다시 실행 =====
+const UNDO=[],REDO=[],REMAP=new Map();let histBusy=false;
+const rid=id=>{let x=id,g=0;while(REMAP.has(x)&&g++<50)x=REMAP.get(x);return x};
+const clean=e=>{const {created_at,...r}=e;return r};
+const snap=()=>new Map(events.map(e=>[String(e.id),JSON.stringify(clean(e))]));
+function beginAct(label){return {label,before:snap()}}
+function commitAct(a){if(!a)return;const after=snap(),b=[],f=[];
+ for(const [id,v] of a.before)if(after.get(id)!==v)b.push(JSON.parse(v));
+ for(const [id,v] of after)if(a.before.get(id)!==v)f.push(JSON.parse(v));
+ if(!b.length&&!f.length)return;UNDO.push({label:a.label,before:b,after:f});if(UNDO.length>40)UNDO.shift();REDO.length=0;histUI()}
+async function applyHist(from,to){
+ const fromIds=new Set(from.map(e=>String(e.id))),toIds=new Set(to.map(e=>String(e.id)));
+ for(const e of from)if(!toIds.has(String(e.id)))await store.remove(rid(e.id));
+ for(const e of to)if(fromIds.has(String(e.id))){const {id,...r}=e;await store.update({...r,id:rid(id)})}
+ const re=to.filter(e=>!fromIds.has(String(e.id)));
+ if(re.length){const known=new Set(events.map(e=>String(e.id)));
+  await store.bulk(re.map(({id,...r})=>r));await refresh();
+  for(const e of re){const m=events.find(x=>!known.has(String(x.id))&&x.type===e.type&&+new Date(x.start_at)===+new Date(e.start_at));if(m){REMAP.set(String(e.id),String(m.id));known.add(String(m.id))}}}
+}
+async function undoLast(){if(histBusy||!UNDO.length)return;histBusy=true;const h0=UNDO.pop();
+ try{await applyHist(h0.after,h0.before);REDO.push(h0);await refresh();toast(`↶ 되돌림: ${h0.label}`)}catch(e){alert('되돌리기 실패: '+e.message);UNDO.push(h0)}finally{histBusy=false;histUI()}}
+async function redoLast(){if(histBusy||!REDO.length)return;histBusy=true;const h0=REDO.pop();
+ try{await applyHist(h0.before,h0.after);UNDO.push(h0);await refresh();toast(`↷ 다시 실행: ${h0.label}`)}catch(e){alert('다시 실행 실패: '+e.message);REDO.push(h0)}finally{histBusy=false;histUI()}}
+function histUI(){const u=$('#undoB'),r=$('#redoB');if(!u)return;u.disabled=!UNDO.length;r.disabled=!REDO.length;
+ u.title=UNDO.length?'되돌리기: '+UNDO[UNDO.length-1].label:'';r.title=REDO.length?'다시 실행: '+REDO[REDO.length-1].label:''}
 let toastTimer;
 function hideToast(){$('#toast').classList.remove('show')}
 function toast(msg,o={}){
  const el=$('#toast');el.replaceChildren(h('div',{class:'tm'},msg));const row=h('div',{class:'tr'});
- if(o.tags&&o.ev)o.tags.forEach(g=>row.append(h('button',{class:'chip',onclick:async()=>{o.ev.note=g;try{await store.update(o.ev);await refresh();toast(`메모 '${g}' 저장됨`)}catch(e){alert(e.message)}}},g)));
+ if(o.tags&&o.ev)o.tags.forEach(g=>row.append(h('button',{class:'chip',onclick:async()=>{const act=beginAct(`메모 ${g}`);o.ev.note=g;try{await store.update(o.ev);await refresh();commitAct(act);toast(`메모 '${g}' 저장됨`)}catch(e){alert(e.message)}}},g)));
  if(o.shift&&o.ev){const sh=o.shift,row2=h('div',{class:'tr'});
   [5,10,15].forEach(n=>row2.append(h('button',{class:'chip',style:'border:1px solid var(--line2)',onclick:async()=>{
-   try{const nt=new Date(+new Date(sh.base)-n*6e4).toISOString(),prevT=o.ev[sh.field];o.ev[sh.field]=nt;await store.update(o.ev);
+   const act=beginAct(`${sh.label} ${n}분 전으로`);try{const nt=new Date(+new Date(sh.base)-n*6e4).toISOString(),prevT=o.ev[sh.field];o.ev[sh.field]=nt;await store.update(o.ev);
     if(sh.linkNote)for(const x of events.filter(x=>+new Date(x.start_at)===+new Date(prevT)&&x.note===sh.linkNote))await store.update({...x,start_at:nt});
     for(const c of (sh.closed||[])){const x=events.find(y=>y.id===c.id);if(x&&x.end_at&&+new Date(x.end_at)===+new Date(prevT)&&+new Date(x.start_at)<+new Date(nt))await store.update({...x,end_at:nt})}
-    await refresh();toast(`${sh.label} ${fmtHM(nt)}(${n}분 전)으로 바꿨어요`)}catch(e){alert(e.message)}}},`⏪ ${n}분 전`)));
+    await refresh();commitAct(act);toast(`${sh.label} ${fmtHM(nt)}(${n}분 전)으로 바꿨어요`,{undo:undoLast})}catch(e){alert(e.message)}}},`⏪ ${n}분 전`)));
   el.append(row2)}
  if(o.ev)row.append(h('button',{class:'chip ghost',onclick:()=>{hideToast();openEdit(o.ev,false)}},'수정'));
- if(o.undo)row.append(h('button',{class:'chip ghost',onclick:async()=>{hideToast();try{await o.undo();toast('취소됨')}catch(e){alert(e.message)}}},'취소'));
+ if(o.undo)row.append(h('button',{class:'chip ghost',onclick:async()=>{hideToast();try{await o.undo()}catch(e){alert(e.message)}}},'↶ 취소'));
  if(row.children.length)el.append(row);
  el.classList.add('show');clearTimeout(toastTimer);toastTimer=setTimeout(hideToast,o.ms||(o.shift?8000:o.tags?5000:2000));
 }
@@ -304,10 +329,10 @@ function openQuick(t){
  const val=h('input',{type:'number',step:'any',inputmode:'decimal',placeholder:t.unit||'',value:t.defaultValue??(last?last.value:'')});
  const note=h('input',{type:'text',placeholder:'메모 (선택)'});
  const tm=h('input',{type:'datetime-local',value:toLocalInput(new Date())});
- const save=async v=>{try{
+ const save=async v=>{const act=beginAct(`${t.emoji} ${t.name}`);try{
   const ev=await store.add({type:t.id,start_at:new Date(tm.value).toISOString(),value:(v===''||v==null)?null:Number(v),note:note.value||null});
-  closeSheet();await refresh();
-  toast(`${t.emoji} ${t.name} 기록 ${fmtHM(ev.start_at)}${ev.value!=null?' · '+ev.value+(t.unit||''):''}`,{ev,undo:async()=>{await store.remove(ev.id);await refresh()}});
+  closeSheet();await refresh();commitAct(act);
+  toast(`${t.emoji} ${t.name} 기록 ${fmtHM(ev.start_at)}${ev.value!=null?' · '+ev.value+(t.unit||''):''}`,{ev,shift:{field:'start_at',base:ev.start_at,label:t.name},undo:undoLast});
  }catch(e){alert('기록 실패: '+e.message)}};
  const body=h('div',{},
   t.unit&&t.presets?h('div',{class:'chips'},t.presets.map(p=>h('button',{class:'chip big',style:p===t.defaultValue?'outline:2px solid #FF9F43':'',onclick:()=>save(p)},(p===t.defaultValue?'★ ':'')+p+t.unit))):null,
@@ -341,14 +366,14 @@ function openEdit(ev,isNew){
   !isNew&&ev.created_by?h('div',{class:'hint'},`기록자: ${ev.created_by}`):null);
  upd();
  const acts=[];
- if(!isNew)acts.push(h('button',{class:'btn red',onclick:async()=>{if(!confirm('이 기록을 삭제할까요?'))return;try{await store.remove(ev.id);closeSheet();await refresh();toast('삭제됨')}catch(e){alert(e.message)}}},'삭제'));
+ if(!isNew)acts.push(h('button',{class:'btn red',onclick:async()=>{const act=beginAct(`${T(ev.type).name} 삭제`);try{await store.remove(ev.id);closeSheet();await refresh();commitAct(act);toast('삭제됨',{undo:undoLast})}catch(e){alert(e.message)}}},'삭제'));
  acts.push(h('button',{class:'btn pri',onclick:async()=>{
   const t=T(typeSel.value);if(!st.value){alert('시작 시간을 넣어 주세요');return}
   const o={...ev,type:t.id,start_at:new Date(st.value).toISOString(),end_at:t.kind==='duration'&&en.value?new Date(en.value).toISOString():null,
    value:t.unit&&val.value!==''?Number(val.value):null,note:note.value||null};
   if(o.end_at&&new Date(o.end_at)<new Date(o.start_at)){alert('종료가 시작보다 빨라요');return}
   if(t.kind!=='duration'&&!isNew)o.end_at=null;
-  try{if(isNew)await store.add(o);else await store.update(o);closeSheet();await refresh();toast('저장됨')}catch(e){alert(e.message)}
+  const act=beginAct(`${t.name} ${isNew?'추가':'수정'}`);try{if(isNew)await store.add(o);else await store.update(o);closeSheet();await refresh();commitAct(act);toast('저장됨',{undo:undoLast})}catch(e){alert(e.message)}
  }},'저장'));
  sheet(isNew?'기록 추가':'기록 수정',body,acts);
 }
@@ -479,9 +504,10 @@ function renderList(p){
 }
 
 async function deleteWithUndo(e){
- try{await store.remove(e.id);openSw=null;swipeBusy=false;await refresh();
+ const act=beginAct(`${T(e.type).name} 삭제`);
+ try{await store.remove(e.id);openSw=null;swipeBusy=false;await refresh();commitAct(act);
   const t=T(e.type);
-  toast(`${t.emoji} ${t.name} ${fmtHM(e.start_at)} 삭제됨`,{undo:async()=>{const {id,created_at,...r}=e;await store.add(r);await refresh()}});
+  toast(`${t.emoji} ${t.name} ${fmtHM(e.start_at)} 삭제됨`,{undo:undoLast});
  }catch(err){alert('삭제 실패: '+err.message)}
 }
 function swipeRow(e,front){
