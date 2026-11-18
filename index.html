@@ -110,7 +110,7 @@ function applyTheme(){let t='dark';try{t=JSON.parse(localStorage.getItem('bl_the
  if(t==='auto')t=matchMedia('(prefers-color-scheme: light)').matches?'light':'dark';
  document.documentElement.dataset.theme=t;const m=document.querySelector('meta[name=theme-color]');if(m)m.content=t==='light'?'#f4f5f7':'#0f1115'}
 applyTheme();
-const APP_VERSION='v1.3';
+const APP_VERSION='v1.3.1';
 const DEFAULT_TYPES=[
  {id:'breast',name:'모유수유',emoji:'🤱',color:'#FFD54A',kind:'duration',enabled:true,feed:true,tags:['왼쪽','오른쪽','양쪽']},
  {id:'formula',name:'분유',emoji:'🍼',color:'#FF9F43',kind:'point',enabled:true,feed:true,unit:'ml',presets:[20,40,60,80,100,120],defaultValue:60},
@@ -221,7 +221,7 @@ async function refresh(){
 }
 function renderAll(){
  $('#title').textContent=config.babyName?`${config.babyName} 기록`:'아기 기록';
- renderLive();if(tab!=='settings'&&!swipeBusy)renderTab();
+ renderLive();if(tab!=='settings'&&!swipeBusy&&tabSig()!==lastSig)renderTab();
 }
 let lastScroll=0,deferT=null;
 window.addEventListener('scroll',()=>{lastScroll=Date.now()},{passive:true});
@@ -339,8 +339,14 @@ function openEdit(ev,isNew){
  }},'저장'));
  sheet(isNew?'기록 추가':'기록 수정',body,acts);
 }
+let lastSig='';
 function renderTab(){
- const p=$('#panel');p.replaceChildren();
+ const p=$('#panel'),sy=window.scrollY;p.style.minHeight=p.offsetHeight+'px';p.replaceChildren();
+ try{renderTabInner(p)}finally{p.style.minHeight='';if(Math.abs(window.scrollY-sy)>1)window.scrollTo(0,sy)}
+ lastSig=tabSig();
+}
+function tabSig(){return tab+'|'+weekOffset+'|'+[...hidden].join()+'|'+(document.documentElement.dataset.theme||'')+'|'+Math.floor(Date.now()/3e5)+'|'+JSON.stringify(config.types)+'|'+JSON.stringify(events)}
+function renderTabInner(p){
  document.querySelectorAll('.tabs button').forEach(b=>b.classList.toggle('a',b.dataset.t===tab));
  if(tab==='chart')renderChart(p);else if(tab==='list')renderList(p);else renderSettings(p);
 }
