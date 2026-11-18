@@ -136,14 +136,14 @@ function applyTheme(){let t='dark';try{t=JSON.parse(localStorage.getItem('bl_the
  if(t==='auto')t=matchMedia('(prefers-color-scheme: light)').matches?'light':'dark';
  document.documentElement.dataset.theme=t;const m=document.querySelector('meta[name=theme-color]');if(m)m.content=t==='light'?'#f4f5f7':'#0f1115'}
 applyTheme();
-const APP_VERSION='v1.10.3';
+const APP_VERSION='v1.10.4';
 const DEFAULT_TYPES=[
  {id:'breast',name:'모유수유',emoji:'🤱',color:'#FFD54A',kind:'duration',enabled:true,feed:true,ends:['sleep'],tags:['왼쪽','오른쪽','양쪽']},
  {id:'formula',name:'분유',emoji:'🍼',color:'#FF9F43',kind:'point',enabled:true,feed:true,ends:['sleep'],unit:'ml',presets:[20,40,60,80,100,120],defaultValue:60},
  {id:'diaper',name:'기저귀',emoji:'🩲',color:'#4DA3FF',kind:'point',enabled:true,ends:['sleep'],tags:['소변','대변','둘다']},
  {id:'sleep',name:'수면',emoji:'😴',color:'#9B7BFF',kind:'duration',enabled:true},
  {id:'bath',name:'목욕',emoji:'🛁',color:'#FFFFFF',kind:'point',enabled:false,marker:true,alsoLog:['diaper'],ends:['sleep'],small:true},
- {id:'weight',name:'체중',emoji:'⚖️',color:'#90A4AE',kind:'point',enabled:true,unit:'kg',marker:true,daily:true,small:true},
+ {id:'weight',name:'체중',emoji:'⚖️',color:'#90A4AE',kind:'point',enabled:true,unit:'kg',marker:true,daily:true,small:true,noChart:true},
  {id:'temp',name:'체온',emoji:'🌡️',color:'#FF6B6B',kind:'point',enabled:false,unit:'°C',presets:[36.5,36.8,37.0,37.5],marker:true,small:true},
  {id:'vitamin',name:'비타민',emoji:'💊',color:'#4CD97B',kind:'point',enabled:false,marker:true,small:true},
  {id:'tummy',name:'터미타임',emoji:'🐢',color:'#2EC4B6',kind:'duration',enabled:false},
@@ -176,7 +176,7 @@ function setZoom(z){z=ZOOMS.reduce((a,b)=>Math.abs(b-z)<Math.abs(a-z)?b:a);if(z=
 document.addEventListener('gesturestart',e=>e.preventDefault());
 const chartStart=()=>addDays(dayStart(new Date()),-(chartDays-1));
 let events=[],weekOffset=0,tab='chart',hidden=new Set(LS.get('bl_hidden',[]));
-function mergeDefaults(c){c.types=c.types||[];c.remind={enabled:true,start:'09:00',end:'21:00',every:2,items:['vitamin','temp','weight'],call:'',...(c.remind||{})};c.alarm={...DEFAULT_ALARM,...(c.alarm||{})};c.types.forEach(t=>{const d=DEFAULT_TYPES.find(x=>x.id===t.id);if(d&&t.marker===undefined&&d.marker)t.marker=true;if(d&&t.small===undefined&&d.small)t.small=true;if(d&&t.alsoLog===undefined&&d.alsoLog)t.alsoLog=[...d.alsoLog];if(d&&t.ends===undefined&&d.ends)t.ends=[...d.ends];if(d&&t.defaultValue===undefined&&d.defaultValue!=null)t.defaultValue=d.defaultValue});const ids=new Set(c.types.map(t=>t.id));DEFAULT_TYPES.forEach(d=>{if(!ids.has(d.id))c.types.push({...d,enabled:false})});return c}
+function mergeDefaults(c){c.types=c.types||[];c.remind={enabled:true,start:'09:00',end:'21:00',every:2,items:['vitamin','temp','weight'],call:'',...(c.remind||{})};c.alarm={...DEFAULT_ALARM,...(c.alarm||{})};c.types.forEach(t=>{const d=DEFAULT_TYPES.find(x=>x.id===t.id);if(d&&t.marker===undefined&&d.marker)t.marker=true;if(d&&t.small===undefined&&d.small)t.small=true;if(d&&t.noChart===undefined&&d.noChart)t.noChart=true;if(d&&t.alsoLog===undefined&&d.alsoLog)t.alsoLog=[...d.alsoLog];if(d&&t.ends===undefined&&d.ends)t.ends=[...d.ends];if(d&&t.defaultValue===undefined&&d.defaultValue!=null)t.defaultValue=d.defaultValue});const ids=new Set(c.types.map(t=>t.id));DEFAULT_TYPES.forEach(d=>{if(!ids.has(d.id))c.types.push({...d,enabled:false})});return c}
 const T=id=>config.types.find(t=>t.id===id)||{id,name:id,emoji:'•',color:'#888',kind:'point'};
 const appTitle=()=>config.title||(config.babyName?`${config.babyName} 기록`:'아기 기록');
 const addType=()=>config.types.find(t=>t.id==='formula'&&t.enabled)||firstEnabled();
@@ -499,7 +499,7 @@ function renderChart(p){
   h('button',{class:'zb',disabled:zi>=ZOOMS.length-1,onclick:()=>setZoom(ZOOMS[zi+1])},'−'),h('span',{class:'zl'},`${zoomDays}일`),h('button',{class:'zb',disabled:zi<=0,onclick:()=>setZoom(ZOOMS[zi-1])},'+'),
   h('button',{onclick:()=>{const sc=wrap.querySelector('.chscroll');sc.scrollTo({left:sc.scrollWidth,behavior:'smooth'})}},'오늘'));
  const used=new Set(events.map(e=>e.type));
- const lg=h('div',{class:'legend'},config.types.filter(t=>t.enabled||used.has(t.id)).map(t=>h('button',{class:'lg'+(hidden.has(t.id)?' off':''),
+ const lg=h('div',{class:'legend'},config.types.filter(t=>(t.enabled||used.has(t.id))&&!t.noChart).map(t=>h('button',{class:'lg'+(hidden.has(t.id)?' off':''),
   onclick:()=>{hidden.has(t.id)?hidden.delete(t.id):hidden.add(t.id);LS.set('bl_hidden',[...hidden]);renderTab()}},t.id==='bath'?(()=>{const sp=h('span',{style:'display:inline-flex'});sp.innerHTML=`<svg width="16" height="14" viewBox="0 0 16 14">${tubSvg(8,7.5,t.color,'#444')}</svg>`;return sp})():t.id==='diaper'?(()=>{const sp=h('span',{style:'display:inline-flex;gap:1px'});sp.innerHTML=[POO,PEE].map(c=>`<svg width="13" height="11" viewBox="0 0 14 12"><path d="${diaperPath(7,6,5)}" fill="${c}" stroke="#444" stroke-width=".6"/></svg>`).join('');return sp})():h('i',{style:`background:${t.color}`}),t.id==='diaper'?'기저귀 (응가·쉬)':t.name)),
   h('button',{class:'lg'+(hidden.has('_gap')?' off':''),onclick:()=>{hidden.has('_gap')?hidden.delete('_gap'):hidden.add('_gap');LS.set('bl_hidden',[...hidden]);renderTab()}},h('i',{style:'background:none;box-shadow:none;border-left:2px dotted #FFD54A;width:2px;height:10px;border-radius:0'}),'수유 간격'));
  const wrap=h('div',{class:'chartwrap'});p.append(nav,lg,wrap);
@@ -517,7 +517,7 @@ function renderChart(p){
  for(let hr=0;hr<=24;hr++){const y=TOP+hr*HH,m=hr%3===0;
   s+=`<line x1="${AX}" x2="${W}" y1="${y}" y2="${y}" stroke="${m?CC('grid'):CC('grid2')}" stroke-width="${m?1:.6}"/>`;
 }
- const vis=events.filter(e=>!hidden.has(e.type));
+ const vis=events.filter(e=>!hidden.has(e.type)&&!T(e.type).noChart);
  const isMk=e=>!!T(e.type).marker,isMoon=e=>false;
  const main=vis.filter(e=>!isMk(e)&&!isMoon(e)),mks=vis.filter(isMk),moons=vis.filter(isMoon);
  const GUT=0;
