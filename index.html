@@ -110,13 +110,13 @@ function applyTheme(){let t='dark';try{t=JSON.parse(localStorage.getItem('bl_the
  if(t==='auto')t=matchMedia('(prefers-color-scheme: light)').matches?'light':'dark';
  document.documentElement.dataset.theme=t;const m=document.querySelector('meta[name=theme-color]');if(m)m.content=t==='light'?'#f4f5f7':'#0f1115'}
 applyTheme();
-const APP_VERSION='v1.2.7';
+const APP_VERSION='v1.3';
 const DEFAULT_TYPES=[
  {id:'breast',name:'모유수유',emoji:'🤱',color:'#FFD54A',kind:'duration',enabled:true,feed:true,tags:['왼쪽','오른쪽','양쪽']},
  {id:'formula',name:'분유',emoji:'🍼',color:'#FF9F43',kind:'point',enabled:true,feed:true,unit:'ml',presets:[20,40,60,80,100,120],defaultValue:60},
  {id:'diaper',name:'기저귀',emoji:'💧',color:'#4DA3FF',kind:'point',enabled:true,tags:['소변','대변','둘다']},
  {id:'sleep',name:'수면',emoji:'😴',color:'#9B7BFF',kind:'duration',enabled:true},
- {id:'bath',name:'목욕',emoji:'🛁',color:'#FFFFFF',kind:'point',enabled:false,marker:true},
+ {id:'bath',name:'목욕',emoji:'🛁',color:'#FFFFFF',kind:'point',enabled:false,marker:true,alsoLog:['diaper']},
  {id:'temp',name:'체온',emoji:'🌡️',color:'#FF6B6B',kind:'point',enabled:false,unit:'°C',presets:[36.5,36.8,37.0,37.5],marker:true},
  {id:'vitamin',name:'비타민',emoji:'💊',color:'#4CD97B',kind:'point',enabled:false,marker:true},
  {id:'tummy',name:'터미타임',emoji:'🐢',color:'#2EC4B6',kind:'duration',enabled:false},
@@ -144,7 +144,7 @@ let dev=LS.get('bl_dev',{url:'',key:'',code:'',who:''});
 let config=mergeDefaults(LS.get('bl_config',null)||{babyName:'',types:JSON.parse(JSON.stringify(DEFAULT_TYPES))});
 let swipeBusy=false,openSw=null,alarmInfo=null;
 let events=[],weekOffset=0,tab='chart',hidden=new Set(LS.get('bl_hidden',[]));
-function mergeDefaults(c){c.types=c.types||[];c.alarm={...DEFAULT_ALARM,...(c.alarm||{})};c.types.forEach(t=>{const d=DEFAULT_TYPES.find(x=>x.id===t.id);if(d&&t.marker===undefined&&d.marker)t.marker=true;if(d&&t.defaultValue===undefined&&d.defaultValue!=null)t.defaultValue=d.defaultValue});const ids=new Set(c.types.map(t=>t.id));DEFAULT_TYPES.forEach(d=>{if(!ids.has(d.id))c.types.push({...d,enabled:false})});return c}
+function mergeDefaults(c){c.types=c.types||[];c.alarm={...DEFAULT_ALARM,...(c.alarm||{})};c.types.forEach(t=>{const d=DEFAULT_TYPES.find(x=>x.id===t.id);if(d&&t.marker===undefined&&d.marker)t.marker=true;if(d&&t.alsoLog===undefined&&d.alsoLog)t.alsoLog=[...d.alsoLog];if(d&&t.defaultValue===undefined&&d.defaultValue!=null)t.defaultValue=d.defaultValue});const ids=new Set(c.types.map(t=>t.id));DEFAULT_TYPES.forEach(d=>{if(!ids.has(d.id))c.types.push({...d,enabled:false})});return c}
 const T=id=>config.types.find(t=>t.id===id)||{id,name:id,emoji:'•',color:'#888',kind:'point'};
 const addType=()=>config.types.find(t=>t.id==='formula'&&t.enabled)||firstEnabled();
 const firstEnabled=()=>config.types.find(t=>t.enabled)||config.types[0];
@@ -168,7 +168,9 @@ const store={
  },
  async add(e){
   if(remote())return rpc('add_event',{p_code:dev.code,p_type:e.type,p_start:e.start_at,p_end:e.end_at||null,p_value:e.value??null,p_note:e.note||null,p_by:e.created_by||dev.who||null});
-  const all=localAll();const n={id:uid(),end_at:null,value:null,note:null,created_by:dev.who||null,...e};all.push(n);LS.set('bl_events',all);return n;
+  const all=localAll();const n={id:uid(),end_at:null,value:null,note:null,created_by:dev.who||null,...e};all.push(n);
+  (T(n.type).alsoLog||[]).filter(l=>l!==n.type).forEach(l=>all.push({id:uid(),type:l,start_at:n.start_at,end_at:null,value:null,note:T(n.type).name+' 때 함께',created_by:n.created_by}));
+  LS.set('bl_events',all);return n;
  },
  async toggle(type){
   if(remote())return rpc('toggle_event',{p_code:dev.code,p_type:type,p_by:dev.who||null});
@@ -260,7 +262,11 @@ async function onTap(t){
   }
   if(t.unit||t.askNote){openQuick(t);return}
   const ev=await store.add({type:t.id,start_at:new Date().toISOString()});await refresh();
-  toast(`${t.emoji} ${t.name} 기록 ${fmtHM(ev.start_at)}`,{tags:t.tags,ev,undo:async()=>{await store.remove(ev.id);await refresh()}});
+  const linked=(t.alsoLog||[]).map(l=>T(l));
+  toast(`${t.emoji} ${t.name} 기록 ${fmtHM(ev.start_at)}${linked.length?' + '+linked.map(x=>x.emoji+' '+x.name).join(', '):''}`,{tags:t.tags,ev,undo:async()=>{
+   await store.remove(ev.id);
+   for(const x of events.filter(x=>x.start_at===ev.start_at&&x.note===t.name+' 때 함께'))await store.remove(x.id);
+   await refresh()}});
  }catch(e){alert('기록 실패: '+e.message)}
 }
 let toastTimer;
@@ -535,6 +541,9 @@ function renderSettings(p){
     h('input',{class:'tags',placeholder:'빠른 메모 (쉼표로)',value:(t.tags||[]).join(', '),oninput:e=>{const v=e.target.value.split(',').map(x=>x.trim()).filter(Boolean);if(v.length)t.tags=v;else delete t.tags}}),
     h('button',{class:'ib',onclick:()=>mv(i,-1)},'↑'),h('button',{class:'ib',onclick:()=>mv(i,1)},'↓'),
     t.id.startsWith('c_')?h('button',{class:'ib',onclick:()=>{if(confirm(`'${t.name}' 항목을 지울까요? (기존 기록은 남아요)`)){draft.types.splice(i,1);draw()}}},'🗑'):null),
+   t.kind!=='duration'?h('div',{class:'trow',style:'flex-wrap:wrap'},h('span',{style:'font-size:12px;color:var(--sub);white-space:nowrap'},'함께 기록'),
+    draft.types.filter(o=>o.id!==t.id&&o.kind!=='duration'&&(o.enabled||(t.alsoLog||[]).includes(o.id))).map(o=>{const on=(t.alsoLog||[]).includes(o.id);
+     return h('button',{class:'chip',style:'padding:4px 10px;font-size:12px;'+(on?`outline:2px solid ${o.color}`:'opacity:.6'),onclick:()=>{const a=new Set(t.alsoLog||[]);on?a.delete(o.id):a.add(o.id);if(a.size)t.alsoLog=[...a];else delete t.alsoLog;draw()}},(on?'✓ ':'')+o.emoji+' '+o.name)})):null,
    t.unit?(()=>{const add=h('input',{class:'unit',type:'number',inputmode:'decimal',step:'any',placeholder:t.unit,style:'width:70px'});
     const doAdd=()=>{const v=parseFloat(add.value);if(!(v>0))return;t.presets=[...new Set([...(t.presets||[]),v])].sort((a,b)=>a-b);draw()};
     return h('div',{},
