@@ -32,6 +32,7 @@ header h1{font-size:21px;margin:0;flex:1}
 .status{margin:0}
 .stgrid{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:6px}
 .st{background:var(--card);border:1px solid var(--line);border-radius:12px;padding:7px 8px;min-width:0;overflow:hidden}
+.st{position:relative}.st>*:not(.stfill){position:relative}.stfill{position:absolute;left:0;top:0;bottom:0;opacity:.45;transition:width .6s ease,background .6s}
 .st span{display:block;font-size:11px;color:var(--sub);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
 .st b{display:block;font-size:15px;margin:2px 0;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
 .st small{display:block;font-size:10.5px;color:var(--sub);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
@@ -134,7 +135,7 @@ function applyTheme(){let t='dark';try{t=JSON.parse(localStorage.getItem('bl_the
  if(t==='auto')t=matchMedia('(prefers-color-scheme: light)').matches?'light':'dark';
  document.documentElement.dataset.theme=t;const m=document.querySelector('meta[name=theme-color]');if(m)m.content=t==='light'?'#f4f5f7':'#0f1115'}
 applyTheme();
-const APP_VERSION='v1.9.2';
+const APP_VERSION='v1.9.3';
 const DEFAULT_TYPES=[
  {id:'breast',name:'모유수유',emoji:'🤱',color:'#FFD54A',kind:'duration',enabled:true,feed:true,ends:['sleep'],tags:['왼쪽','오른쪽','양쪽']},
  {id:'formula',name:'분유',emoji:'🍼',color:'#FF9F43',kind:'point',enabled:true,feed:true,ends:['sleep'],unit:'ml',presets:[20,40,60,80,100,120],defaultValue:60},
@@ -263,7 +264,9 @@ window.addEventListener('scroll',()=>{lastScroll=Date.now()},{passive:true});
 window.addEventListener('touchmove',()=>{lastScroll=Date.now()},{passive:true});
 function whenIdle(fn){if(Date.now()-lastScroll<1000){clearTimeout(deferT);deferT=setTimeout(()=>whenIdle(fn),600);return}fn()}
 function renderLive(){renderStatus();renderButtons()}
-function card(title,big,sub,color){return h('div',{class:'st',style:`border-left:3px solid ${color}`},h('span',{},title),h('b',{},big),sub?h('small',{},sub):null)}
+function card(title,big,sub,color,fill){const c=h('div',{class:'st',style:`border-left:3px solid ${color}`},h('span',{},title),h('b',{},big),sub?h('small',{},sub):null);
+ if(fill){c.prepend(h('i',{class:'stfill',style:`width:${Math.round(fill.p*1000)/10}%;background:${fill.c}`}));if(fill.over)c.style.borderColor=fill.c}return c}
+const progCol=p=>p<0.6?'#3a9d5d':p<0.85?'#c9a227':p<1?'#e07b39':'#d64545';
 function renderStatus(){
  const now=Date.now(),s=[...events].sort((a,b)=>new Date(b.start_at)-new Date(a.start_at));
  const f=s.find(e=>T(e.type).feed),fo=s.find(e=>T(e.type).feed&&isOpen(e)),d=s.find(e=>e.type==='diaper'),a=alarmInfo;
@@ -271,9 +274,13 @@ function renderStatus(){
   :f?card('마지막 수유',agoS(now-new Date(f.start_at))+' 전',`${T(f.type).emoji} ${fmtHM(f.start_at)}${f.value!=null?' · '+f.value+(T(f.type).unit||''):''}`,T(f.type).color)
   :card('마지막 수유','-','기록 없음','#555');
  let c2;
- if(a&&a.enabled&&!a.open_feed&&a.due_at){const due=new Date(a.due_at),left=due-now;
-  c2=card('다음 수유',fmtHM(due),left>0?`${agoS(left)} 후 · ${a.source==='auto'?'자동':'설정'} ${agoS(a.interval_min*6e4)}`:`${agoS(-left)} 지남`,'#FFD54A')}
- else c2=card('다음 수유',a&&a.open_feed?'수유 중':'-',a&&a.enabled===false?'알림 꺼짐':(remote()?'':'동기화 필요'),'#FFD54A');
+ let lastEnd=null,dueAt=null,src='설정',ivMin=+(config.alarm&&config.alarm.fixedMin)||120;
+ if(a&&a.last_end&&a.due_at){lastEnd=+new Date(a.last_end);dueAt=+new Date(a.due_at)+(+a.lead_min||0)*6e4;src=a.source==='auto'?'자동':'설정';ivMin=a.interval_min}
+ else if(f&&!fo){const t=T(f.type);lastEnd=t.kind==='duration'&&f.end_at?+new Date(f.end_at):+new Date(f.start_at);dueAt=lastEnd+ivMin*6e4}
+ if(fo)c2=card('다음 수유','수유 중',`${T(fo.type).emoji} ${agoS(now-new Date(fo.start_at))} 째`,'#FFD54A');
+ else if(lastEnd&&dueAt>lastEnd){const p=(now-lastEnd)/(dueAt-lastEnd),left=dueAt-now,c=progCol(p);
+  c2=card('다음 수유',left>0?`${agoS(left)} 남음`:`${agoS(-left)} 지남`,`${fmtHM(dueAt)} · ${src} ${agoS(ivMin*6e4)}`,c,{p:Math.max(0,Math.min(1,p)),c,over:left<=0})}
+ else c2=card('다음 수유','-','수유 기록 없음','#FFD54A');
  const c3=d?card('마지막 기저귀',agoS(now-new Date(d.start_at))+' 전',`${fmtHM(d.start_at)}${d.note?' · '+d.note:''}`,T('diaper').color):card('마지막 기저귀','-','기록 없음','#555');
  const ongo=s.filter(e=>isOpen(e)&&!T(e.type).feed).map(e=>{const t=T(e.type);return h('span',{style:`--c:${t.color}`},`${t.emoji} ${t.name} 중 ${agoS(now-new Date(e.start_at))}`)});
  $('#status').replaceChildren(h('div',{class:'stgrid'},c1,c2,c3),ongo.length?h('div',{class:'ongo'},ongo):'');
