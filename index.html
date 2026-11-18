@@ -135,7 +135,7 @@ function applyTheme(){let t='dark';try{t=JSON.parse(localStorage.getItem('bl_the
  if(t==='auto')t=matchMedia('(prefers-color-scheme: light)').matches?'light':'dark';
  document.documentElement.dataset.theme=t;const m=document.querySelector('meta[name=theme-color]');if(m)m.content=t==='light'?'#f4f5f7':'#0f1115'}
 applyTheme();
-const APP_VERSION='v1.10.1';
+const APP_VERSION='v1.10.2';
 const DEFAULT_TYPES=[
  {id:'breast',name:'모유수유',emoji:'🤱',color:'#FFD54A',kind:'duration',enabled:true,feed:true,ends:['sleep'],tags:['왼쪽','오른쪽','양쪽']},
  {id:'formula',name:'분유',emoji:'🍼',color:'#FF9F43',kind:'point',enabled:true,feed:true,ends:['sleep'],unit:'ml',presets:[20,40,60,80,100,120],defaultValue:60},
@@ -170,7 +170,7 @@ let dev=LS.get('bl_dev',{url:'',key:'',code:'',who:''});
 let config=mergeDefaults(LS.get('bl_config',null)||{babyName:'',types:JSON.parse(JSON.stringify(DEFAULT_TYPES))});
 let swipeBusy=false,openSw=null,alarmInfo=null,chartDays=21,chartFromRightD=0,chartLoading=false;
 const ZOOMS=[5,7,10,14,21];let zoomDays=LS.get('bl_zoom',7);
-const dPlus=d=>{if(!config.birthDate)return null;const b=new Date(config.birthDate+'T00:00:00');return Math.round((+dayStart(d)-+b)/864e5)};
+const dPlus=d=>{if(!config.birthDate)return null;const b=new Date(config.birthDate+'T00:00:00');return Math.round((+dayStart(d)-+b)/864e5)+1};
 function setZoom(z){z=ZOOMS.reduce((a,b)=>Math.abs(b-z)<Math.abs(a-z)?b:a);if(z===zoomDays)return;zoomDays=z;LS.set('bl_zoom',z);renderTab()}
 document.addEventListener('gesturestart',e=>e.preventDefault());
 const chartStart=()=>addDays(dayStart(new Date()),-(chartDays-1));
@@ -748,7 +748,7 @@ function renderSettings(p){
  {const bd=h('input',{type:'date',value:config.birthDate||''});
   p.append(sec('아기 생일 (두 폰 공통)',field('태어난 날',bd),
    h('div',{style:'display:flex;gap:8px'},h('button',{class:'btn pri',onclick:async()=>{config.birthDate=bd.value||'';try{await saveConfig();toast(config.birthDate?`저장됨 · 오늘 D+${dPlus(new Date())}`:'생일 지움')}catch(e){alert(e.message)}renderAll()}},'저장')),
-   h('div',{class:'hint'},'저장하면 차트 날짜 아래에 D+일수가 표시돼요 (태어난 날 = D+0).')));}
+   h('div',{class:'hint'},'저장하면 차트 날짜 아래에 D+일수가 표시돼요 (태어난 날 = D+1, 한국식).')));}
  // 시간 단위
  {const cur=+(config.timeRound||1);
   p.append(sec('시간 기록 단위 (두 폰 공통)',h('div',{class:'chips',style:'margin:0'},[[1,'1분 · 그대로'],[5,'5분 · 반올림'],[10,'10분 · 반올림']].map(([n,l])=>
