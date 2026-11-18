@@ -136,7 +136,7 @@ function applyTheme(){let t='dark';try{t=JSON.parse(localStorage.getItem('bl_the
  if(t==='auto')t=matchMedia('(prefers-color-scheme: light)').matches?'light':'dark';
  document.documentElement.dataset.theme=t;const m=document.querySelector('meta[name=theme-color]');if(m)m.content=t==='light'?'#f4f5f7':'#0f1115'}
 applyTheme();
-const APP_VERSION='v1.14';
+const APP_VERSION='v1.14.1';
 const DEFAULT_TYPES=[
  {id:'breast',name:'모유수유',emoji:'🤱',color:'#FFD54A',kind:'duration',enabled:true,feed:true,ends:['sleep'],unit:'ml',presets:[10,20,30,40,60],tags:['왼쪽','오른쪽','양쪽']},
  {id:'formula',name:'분유',emoji:'🍼',color:'#FF9F43',kind:'point',enabled:true,feed:true,ends:['sleep'],unit:'ml',presets:[20,40,60,80,100,120],defaultValue:60},
@@ -295,6 +295,7 @@ function renderStatus(){
  const ongo=s.filter(e=>isOpen(e)&&!T(e.type).feed).map(e=>{const t=T(e.type);return h('span',{style:`--c:${t.color}`},`${t.emoji} ${t.name} 중 ${agoS(now-new Date(e.start_at))}`)});
  $('#status').replaceChildren(h('div',{class:'stgrid'},c1,c2,c3),ongo.length?h('div',{class:'ongo'},ongo):'');
 }
+function isSmall(t){const m=LS.get('bl_size',{});return m[t.id]?m[t.id]==='small':!!t.small}
 let btnEdit=false,btnDrag=null,suppressClick=false;
 function orderedTypes(){const ord=LS.get('bl_order',[]);const en=config.types.filter(t=>t.enabled);
  const idx=id=>{const i=ord.indexOf(id);return i<0?1e3+config.types.findIndex(t=>t.id===id):i};
@@ -306,12 +307,12 @@ function renderButtons(){
   const open=events.find(e=>e.type===t.id&&isOpen(e));
   const last=events.filter(e=>e.type===t.id).sort((a,b)=>new Date(b.start_at)-new Date(a.start_at))[0];
   const sub=open?`진행 중 ${agoS(now-new Date(open.start_at))}`:last?`${fmtHM(last.start_at)} (${agoS(now-new Date(last.start_at))} 전)`:(t.kind==='duration'?'탭: 시작':'탭: 기록');
-  const cmp=LS.get('bl_compact',false)&&!btnEdit;const sm=t.small&&!btnEdit&&!cmp;
+  const cmp=LS.get('bl_compact',false)&&!btnEdit;const isSm=isSmall(t),sm=isSm&&!btnEdit&&!cmp;
   const t0=+dayStart(new Date()),done=(t.daily??t.marker)&&events.some(e=>e.type===t.id&&+new Date(e.start_at)>=t0);
   const b=h('button',{class:'tb'+(open?' on':'')+(sm?' sm':'')+(btnEdit?' jig':'')+(done?' done':''),style:`--c:${t.color}`,'data-id':t.id,
    onclick:()=>{if(suppressClick){suppressClick=false;return}if(btnEdit)return;onTap(t)}},done?h('span',{class:'chk'},'✓'):null,h('span',{class:'e'},t.emoji),
    sm?h('span',{class:'sw2'},h('span',{class:'n'},open?`${t.name} 끝`:t.name),h('span',{class:'s'},sub)):[h('span',{class:'n'},open?`${t.name} 끝`:t.name),h('span',{class:'s'},btnEdit?'끌어서 이동':sub)]);
-  attachBtnPointer(b);b._small=cmp?!!t.small:!!sm;return b};
+  attachBtnPointer(b);b._small=cmp?isSm:!!sm;return b};
  const list=orderedTypes().map(mk);
  if(btnEdit){
   $('#btns').replaceChildren(h('div',{class:'editbar'},h('span',{},'✋ 끌어서 원하는 자리로 옮기세요 (이 폰에만 적용)'),
@@ -731,6 +732,14 @@ function renderSettings(p){
  {const on=LS.get('bl_compact',false);
   p.append(sec('메뉴 작게 보기 (이 폰에만 적용)',h('div',{class:'chips',style:'margin:0'},[[false,'기본 (3칸)'],[true,'작게 (큰 버튼 한 줄 + 작은 버튼 한 줄)']].map(([v,l])=>
    h('button',{class:'chip'+(on===v?' big':''),style:on===v?'outline:2px solid #FFD54A':'',onclick:()=>{LS.set('bl_compact',v);renderButtons();renderTab()}},l)))));}
+ {const draw=()=>{const m=LS.get('bl_size',{});return config.types.filter(t=>t.enabled).map(t=>{const sm=isSmall(t);
+   return h('div',{class:'trow',style:'justify-content:space-between'},h('span',{style:'font-size:14px'},`${t.emoji} ${t.name}`),
+    h('div',{class:'chips',style:'margin:0;flex-wrap:nowrap'},[['big','크게'],['small','작게']].map(([v,l])=>{const on=(v==='small')===sm;
+     return h('button',{class:'chip',style:'padding:5px 12px;font-size:13px;'+(on?'outline:2px solid #FFD54A;font-weight:700':'opacity:.6'),onclick:()=>{const mm=LS.get('bl_size',{});mm[t.id]=v;LS.set('bl_size',mm);renderButtons();box.replaceChildren(...draw())}},l)})))})};
+  const box=h('div',{},...draw());
+  p.append(sec('메뉴 버튼 크기 (이 폰에만 적용)',box,
+   h('div',{style:'display:flex;gap:8px;margin-top:6px'},h('button',{class:'btn',onclick:()=>{localStorage.removeItem('bl_size');renderButtons();box.replaceChildren(...draw())}},'기본으로')),
+   h('div',{class:'hint'},'작게로 한 버튼은 두 개씩 위아래로 묶여요. 위치는 메뉴 버튼을 꾹 눌러서 옮기면 돼요.')));}
  // 앱 아이콘
  {const curIc=LS.get('bl_icon',null);
   const prev=h('img',{src:curIc||'icon-180.png',style:'width:64px;height:64px;border-radius:15px;object-fit:cover;border:1px solid var(--line)'});
