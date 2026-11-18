@@ -136,7 +136,7 @@ function applyTheme(){let t='dark';try{t=JSON.parse(localStorage.getItem('bl_the
  if(t==='auto')t=matchMedia('(prefers-color-scheme: light)').matches?'light':'dark';
  document.documentElement.dataset.theme=t;const m=document.querySelector('meta[name=theme-color]');if(m)m.content=t==='light'?'#f4f5f7':'#0f1115'}
 applyTheme();
-const APP_VERSION='v1.14.1';
+const APP_VERSION='v1.15';
 const DEFAULT_TYPES=[
  {id:'breast',name:'모유수유',emoji:'🤱',color:'#FFD54A',kind:'duration',enabled:true,feed:true,ends:['sleep'],unit:'ml',presets:[10,20,30,40,60],tags:['왼쪽','오른쪽','양쪽']},
  {id:'formula',name:'분유',emoji:'🍼',color:'#FF9F43',kind:'point',enabled:true,feed:true,ends:['sleep'],unit:'ml',presets:[20,40,60,80,100,120],defaultValue:60},
@@ -176,7 +176,7 @@ function setZoom(z){z=ZOOMS.reduce((a,b)=>Math.abs(b-z)<Math.abs(a-z)?b:a);if(z=
 document.addEventListener('gesturestart',e=>e.preventDefault());
 const chartStart=()=>addDays(dayStart(new Date()),-(chartDays-1));
 let events=[],weekOffset=0,tab='chart',hidden=new Set(LS.get('bl_hidden',[]));
-function mergeDefaults(c){c.types=c.types||[];c.tempRange={min:36.4,max:37.8,...(c.tempRange||{})};c.remind={enabled:true,start:'09:00',end:'21:00',every:2,items:['vitamin','temp','weight'],call:'',...(c.remind||{})};c.alarm={...DEFAULT_ALARM,...(c.alarm||{})};c.types.forEach(t=>{const d=DEFAULT_TYPES.find(x=>x.id===t.id);if(d&&t.marker===undefined&&d.marker)t.marker=true;if(d&&t.small===undefined&&d.small)t.small=true;if(d&&t.noChart===undefined&&d.noChart)t.noChart=true;if(t.id==='breast'&&t.unit===undefined&&!t._unitSet){t.unit='ml';t.presets=t.presets||[10,20,30,40,60];t._unitSet=1}if(d&&t.alsoLog===undefined&&d.alsoLog)t.alsoLog=[...d.alsoLog];if(d&&t.ends===undefined&&d.ends)t.ends=[...d.ends];if(d&&t.defaultValue===undefined&&d.defaultValue!=null)t.defaultValue=d.defaultValue});const ids=new Set(c.types.map(t=>t.id));DEFAULT_TYPES.forEach(d=>{if(!ids.has(d.id))c.types.push({...d,enabled:false})});return c}
+function mergeDefaults(c){c.types=c.types||[];c.tempRange={min:36.4,max:37.8,...(c.tempRange||{})};c.overdue={enabled:true,afterMin:240,everyMin:5,...(c.overdue||{})};c.remind={enabled:true,start:'09:00',end:'21:00',every:2,items:['vitamin','temp','weight'],call:'',...(c.remind||{})};c.alarm={...DEFAULT_ALARM,...(c.alarm||{})};c.types.forEach(t=>{const d=DEFAULT_TYPES.find(x=>x.id===t.id);if(d&&t.marker===undefined&&d.marker)t.marker=true;if(d&&t.small===undefined&&d.small)t.small=true;if(d&&t.noChart===undefined&&d.noChart)t.noChart=true;if(t.id==='breast'&&t.unit===undefined&&!t._unitSet){t.unit='ml';t.presets=t.presets||[10,20,30,40,60];t._unitSet=1}if(d&&t.alsoLog===undefined&&d.alsoLog)t.alsoLog=[...d.alsoLog];if(d&&t.ends===undefined&&d.ends)t.ends=[...d.ends];if(d&&t.defaultValue===undefined&&d.defaultValue!=null)t.defaultValue=d.defaultValue});const ids=new Set(c.types.map(t=>t.id));DEFAULT_TYPES.forEach(d=>{if(!ids.has(d.id))c.types.push({...d,enabled:false})});return c}
 const T=id=>config.types.find(t=>t.id===id)||{id,name:id,emoji:'•',color:'#888',kind:'point'};
 const appTitle=()=>config.title||(config.babyName?`${config.babyName} 기록`:'아기 기록');
 const addType=()=>config.types.find(t=>t.id==='formula'&&t.enabled)||firstEnabled();
@@ -795,6 +795,17 @@ function renderSettings(p){
    h('div',{class:'hint'},'예) 5분 단위면 21:52 → 21:50, 21:53 → 21:55 로 기록돼요. 버튼·단축어·직접 입력 모두 적용되고, 이미 있던 기록은 바뀌지 않아요.')));}
  // 수유 알림
  p.append(renderAlarmSettings());
+ if(remote()){const o={...config.overdue};let after=+o.afterMin||240,every=+o.everyMin||5;
+  const en=h('input',{type:'checkbox',checked:!!o.enabled,style:'width:22px;height:22px'});
+  const aRow=h('div',{class:'chips',style:'margin:0 0 8px'}),eRow=h('div',{class:'chips',style:'margin:0 0 8px'});
+  const drawA=()=>aRow.replaceChildren(...[180,210,240,270,300,360].map(m=>h('button',{class:'chip'+(after===m?' big':''),style:after===m?'outline:2px solid #EF4444':'',onclick:()=>{after=m;drawA()}},agoS(m*6e4))));
+  const drawE=()=>eRow.replaceChildren(...[3,5,10,15,30].map(m=>h('button',{class:'chip'+(every===m?' big':''),style:every===m?'outline:2px solid #EF4444':'',onclick:()=>{every=m;drawE()}},`${m}분마다`)));drawA();drawE();
+  p.append(sec('🚨 수유 지연 경고 (반복 알림)',
+   h('label',{class:'fld',style:'display:flex;align-items:center;gap:8px'},en,h('span',{style:'margin:0;font-size:15px;color:var(--txt)'},'켜기')),
+   h('div',{class:'hint',style:'margin-top:0'},'마지막 수유가 끝나고 이만큼 지나면'),aRow,
+   h('div',{class:'hint',style:'margin-top:0'},'이 간격으로 계속 알려요 (수유를 기록하면 멈춰요)'),eRow,
+   h('button',{class:'btn pri',onclick:async()=>{config.overdue={enabled:en.checked,afterMin:after,everyMin:every};try{await saveConfig();toast(`${agoS(after*6e4)} 지나면 ${every}분마다 알림`)}catch(e){alert(e.message)}}},'저장'),
+   h('div',{class:'hint'},'예) "🚨 예린이 수유한 지 4시간 5분 지났어요" — 두 폰 모두에 가요. 모유수유 진행 중에는 보내지 않아요.')))}
  p.append(renderRemindSettings());
  if(remote()){const on=config.liveNotify!==false,dl=config.liveDelay??3;
   p.append(sec('상대방 기록 알림',h('div',{class:'chips',style:'margin:0'},[[true,'켜기'],[false,'끄기']].map(([v,l])=>
