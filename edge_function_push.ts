@@ -21,7 +21,7 @@ Deno.serve(async () => {
     const { data: claimed } = await sb.from("push_queue").update({ sent_at: new Date().toISOString() })
       .eq("id", m.id).is("sent_at", null).select("id");
     if (!claimed?.length) continue;
-    for (const s of subs ?? []) {
+    for (const s of (subs ?? []).filter((x) => !m.exclude_who || x.who !== m.exclude_who)) {
       try {
         await webpush.sendNotification(s.sub, JSON.stringify({ title: m.title, body: m.body, tag: m.tag }));
         sent++;
