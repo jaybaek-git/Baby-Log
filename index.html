@@ -130,7 +130,7 @@ function applyTheme(){let t='dark';try{t=JSON.parse(localStorage.getItem('bl_the
  if(t==='auto')t=matchMedia('(prefers-color-scheme: light)').matches?'light':'dark';
  document.documentElement.dataset.theme=t;const m=document.querySelector('meta[name=theme-color]');if(m)m.content=t==='light'?'#f4f5f7':'#0f1115'}
 applyTheme();
-const APP_VERSION='v1.7.4';
+const APP_VERSION='v1.8';
 const DEFAULT_TYPES=[
  {id:'breast',name:'모유수유',emoji:'🤱',color:'#FFD54A',kind:'duration',enabled:true,feed:true,ends:['sleep'],tags:['왼쪽','오른쪽','양쪽']},
  {id:'formula',name:'분유',emoji:'🍼',color:'#FF9F43',kind:'point',enabled:true,feed:true,ends:['sleep'],unit:'ml',presets:[20,40,60,80,100,120],defaultValue:60},
@@ -180,6 +180,8 @@ async function rpc(fn,args){
  if(!r.ok){let m=t;try{m=JSON.parse(t).message||t}catch(e){}throw new Error(m)}
  return t?JSON.parse(t):null;
 }
+const RND=v=>{const n=+(config.timeRound||1);if(!v||n<=1)return v;const ms=n*6e4;return new Date(Math.round(+new Date(v)/ms)*ms).toISOString()};
+const rnd=e=>{if(e.start_at)e.start_at=RND(e.start_at);if(e.end_at)e.end_at=RND(e.end_at);if(e.end_at&&new Date(e.end_at)<new Date(e.start_at))e.end_at=e.start_at;return e};
 const localAll=()=>LS.get('bl_events',[]);
 const store={
  async list(from,to){
@@ -192,7 +194,7 @@ const store={
    for(const l of (T(e.type).ends||[]))for(const x of events.filter(x=>x.type===l&&isOpen(x)&&+new Date(x.start_at)<=+new Date(r.start_at)))
     {try{await rpc('update_event',{p_code:dev.code,p_id:x.id,p_type:x.type,p_start:x.start_at,p_end:r.start_at,p_value:x.value??null,p_note:x.note||null})}catch(_){}}
    return r}
-  const all=localAll();const n={id:uid(),end_at:null,value:null,note:null,created_by:dev.who||null,...e};
+  const all=localAll();const n=rnd({id:uid(),end_at:null,value:null,note:null,created_by:dev.who||null,...e});
   (T(n.type).ends||[]).forEach(l=>all.filter(x=>x.type===l&&isOpen(x)&&+new Date(x.start_at)<=+new Date(n.start_at)).forEach(x=>{x.end_at=n.start_at}));
   all.push(n);
   (T(n.type).alsoLog||[]).filter(l=>l!==n.type).forEach(l=>all.push({id:uid(),type:l,start_at:n.start_at,end_at:null,value:null,note:T(n.type).name+' 때 함께',created_by:n.created_by}));
@@ -201,12 +203,12 @@ const store={
  async toggle(type){
   if(remote())return rpc('toggle_event',{p_code:dev.code,p_type:type,p_by:dev.who||null});
   const all=localAll();const open=all.filter(e=>e.type===type&&isOpen(e)).sort((a,b)=>new Date(b.start_at)-new Date(a.start_at))[0];
-  if(open){open.end_at=new Date().toISOString();LS.set('bl_events',all);return {action:'stop',event:open}}
+  if(open){open.end_at=RND(new Date().toISOString());if(new Date(open.end_at)<new Date(open.start_at))open.end_at=open.start_at;LS.set('bl_events',all);return {action:'stop',event:open}}
   return {action:'start',event:await store.add({type,start_at:new Date().toISOString()})};
  },
  async update(e){
   if(remote())return rpc('update_event',{p_code:dev.code,p_id:e.id,p_type:e.type,p_start:e.start_at,p_end:e.end_at||null,p_value:e.value??null,p_note:e.note||null});
-  const all=localAll();const i=all.findIndex(x=>x.id===e.id);if(i>=0)all[i]={...all[i],...e};LS.set('bl_events',all);return all[i];
+  const all=localAll();const i=all.findIndex(x=>x.id===e.id);if(i>=0)all[i]=rnd({...all[i],...e});LS.set('bl_events',all);return all[i];
  },
  async remove(id){
   if(remote())return rpc('delete_event',{p_code:dev.code,p_id:id});
@@ -697,6 +699,11 @@ function renderSettings(p){
    catch(e){msg.textContent='❌ 연결 실패: '+e.message;setSync('err',e.message)}
   }},'저장 & 연결 테스트'),msg));
 
+ // 시간 단위
+ {const cur=+(config.timeRound||1);
+  p.append(sec('시간 기록 단위 (두 폰 공통)',h('div',{class:'chips',style:'margin:0'},[[1,'1분 · 그대로'],[5,'5분 · 반올림'],[10,'10분 · 반올림']].map(([n,l])=>
+   h('button',{class:'chip'+(cur===n?' big':''),style:cur===n?'outline:2px solid #FFD54A':'',onclick:async()=>{config.timeRound=n;try{await saveConfig();toast(`시간 단위: ${l}`)}catch(e){alert(e.message)}renderTab()}},l))),
+   h('div',{class:'hint'},'예) 5분 단위면 21:52 → 21:50, 21:53 → 21:55 로 기록돼요. 버튼·단축어·직접 입력 모두 적용되고, 이미 있던 기록은 바뀌지 않아요.')));}
  // 수유 알림
  p.append(renderAlarmSettings());
  // 항목
