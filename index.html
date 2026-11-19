@@ -67,6 +67,7 @@ header h1{font-size:21px;margin:0;white-space:nowrap;overflow:hidden;text-overfl
 .tabs button{flex:1;background:none;border:0;color:var(--sub);padding:8px;border-radius:8px;font-weight:600}
 .tabs button.a{background:var(--btn);color:var(--txt)}
 .nav{display:flex;align-items:center;gap:8px;margin-bottom:6px}
+.vbar{display:flex;gap:6px;overflow-x:auto;scrollbar-width:none;margin:0 0 8px;padding:1px}.vbar::-webkit-scrollbar{display:none}.vbar .seg{display:flex;border:1px solid var(--line2);border-radius:10px;overflow:hidden;flex:0 0 auto}.vbar .seg button{border:0;border-radius:0;padding:6px 11px;background:transparent;color:var(--sub);font-weight:700;font-size:13px}.vbar .seg button.on{background:#FFD54A;color:#111}.vbar .fv{flex:0 0 auto;padding:5px 10px;border-radius:10px;font-size:12.5px;white-space:nowrap;background:transparent;border:1px solid var(--line2);color:var(--txt)}.vbar .fv.on{outline:2px solid #FFD54A;outline-offset:-2px;font-weight:700}.vbar .star{color:#E0A800;font-size:15px;padding:4px 10px}
 .nav button{background:var(--card);border:1px solid var(--line);border-radius:8px;padding:6px 12px}
 .nav button:disabled{opacity:.3}
 .nav-t{flex:1;text-align:center;font-weight:600;font-size:14px;white-space:nowrap}.nav button{padding:6px 10px}.nav .todayb{background:#FFD54A;color:#111;font-weight:700;border-color:#FFD54A}.nav .todayb:active{transform:scale(.95)}.nav .zb{width:32px;padding:6px 0;font-weight:700}.nav .zl{font-size:11px;color:var(--sub);min-width:26px;text-align:center}
@@ -140,7 +141,7 @@ function applyTheme(){let t='dark';try{t=JSON.parse(localStorage.getItem('bl_the
  if(t==='auto')t=matchMedia('(prefers-color-scheme: light)').matches?'light':'dark';
  document.documentElement.dataset.theme=t;const m=document.querySelector('meta[name=theme-color]');if(m)m.content=t==='light'?'#f4f5f7':'#0f1115'}
 applyTheme();
-const APP_VERSION='v1.17.2';
+const APP_VERSION='v1.17.3';
 const DEFAULT_TYPES=[
  {id:'breast',name:'모유수유',emoji:'🤱',color:'#FFD54A',kind:'duration',enabled:true,feed:true,ends:['sleep'],unit:'ml',presets:[10,20,30,40,60],tags:['왼쪽','오른쪽','양쪽']},
  {id:'formula',name:'분유',emoji:'🍼',color:'#FF9F43',kind:'point',enabled:true,feed:true,ends:['sleep'],unit:'ml',presets:[20,40,60,80,100,120],defaultValue:60},
@@ -180,6 +181,15 @@ let config=mergeDefaults(LS.get('bl_config',null)||{babyName:'',types:JSON.parse
 let swipeBusy=false,openSw=null,alarmInfo=null,chartDays=21,chartFromRightD=0,chartLoading=false;
 const ZOOMS=[5,7,10,14,21];let zoomDays=LS.get('bl_zoom',7);
 const dPlus=d=>{if(!config.birthDate)return null;const b=new Date(config.birthDate+'T00:00:00');return Math.round((+dayStart(d)-+b)/864e5)+1};
+const DEF_FAVS=[{d:7,b:false},{d:7,b:true},{d:5,b:true}];
+function getFavs(){const f=LS.get('bl_favs',null);return Array.isArray(f)?f:DEF_FAVS.map(x=>({...x}))}
+const favLabel=f=>`${f.d}일 ${f.b?'크게':'작게'}`;
+function applyView(d,b){LS.set('bl_big',!!b);zoomDays=ZOOMS.reduce((a,c)=>Math.abs(c-d)<Math.abs(a-d)?c:a);LS.set('bl_zoom',zoomDays);renderTab()}
+function viewBar(){const big=LS.get('bl_big',false),favs=getFavs(),curFav=favs.findIndex(f=>f.d===zoomDays&&!!f.b===big);
+ return h('div',{class:'vbar'},
+  h('span',{class:'seg'},h('button',{class:big?'':'on',onclick:()=>applyView(zoomDays,false)},'작게'),h('button',{class:big?'on':'',onclick:()=>applyView(zoomDays,true)},'크게')),
+  h('button',{class:'fv star',title:'즐겨찾기',onclick:()=>{const fs=getFavs();if(curFav>=0){fs.splice(curFav,1);toast('즐겨찾기에서 뺐어요')}else{fs.push({d:zoomDays,b:big});toast(`⭐ ${favLabel({d:zoomDays,b:big})} 즐겨찾기 추가`)}LS.set('bl_favs',fs);renderTab()}},curFav>=0?'★':'☆'),
+  ...favs.map((f,i)=>h('button',{class:'fv'+(i===curFav?' on':''),onclick:()=>applyView(f.d,f.b)},favLabel(f))))}
 function setZoom(z){z=ZOOMS.reduce((a,b)=>Math.abs(b-z)<Math.abs(a-z)?b:a);if(z===zoomDays)return;zoomDays=z;LS.set('bl_zoom',z);renderTab()}
 document.addEventListener('gesturestart',e=>e.preventDefault());
 const chartStart=()=>addDays(dayStart(new Date()),-(chartDays-1));
@@ -574,7 +584,7 @@ function renderChart(p){
  const lg=h('div',{class:'legend'},config.types.filter(t=>(t.enabled||used.has(t.id))&&!t.noChart).map(t=>h('button',{class:'lg'+(hidden.has(t.id)?' off':''),
   onclick:()=>{hidden.has(t.id)?hidden.delete(t.id):hidden.add(t.id);LS.set('bl_hidden',[...hidden]);renderTab()}},t.id==='bath'?(()=>{const sp=h('span',{style:'display:inline-flex'});sp.innerHTML=`<svg width="16" height="14" viewBox="0 0 16 14">${tubSvg(8,7.5,t.color,'#444')}</svg>`;return sp})():t.id==='diaper'?(()=>{const sp=h('span',{style:'display:inline-flex;gap:1px'});sp.innerHTML=[POO,PEE].map(c=>`<svg width="13" height="11" viewBox="0 0 14 12"><path d="${diaperPath(7,6,5)}" fill="${c}" stroke="#444" stroke-width=".6"/></svg>`).join('');return sp})():h('i',{style:`background:${t.color}`}),t.id==='diaper'?'기저귀 (응가·쉬)':t.name)),
   h('button',{class:'lg'+(hidden.has('_gap')?' off':''),onclick:()=>{hidden.has('_gap')?hidden.delete('_gap'):hidden.add('_gap');LS.set('bl_hidden',[...hidden]);renderTab()}},h('i',{style:'background:none;box-shadow:none;border-left:2px dotted #FFD54A;width:2px;height:10px;border-radius:0'}),'수유 간격'));
- const wrap=h('div',{class:'chartwrap'});p.append(nav,lg,wrap);
+ const wrap=h('div',{class:'chartwrap'});p.append(nav,viewBar(),lg,wrap);
  const VW=Math.max(300,wrap.clientWidth||p.clientWidth||360),AXW=24;
  const K=LS.get('bl_big',false)?1.35:1;const BD=!!config.birthDate,AX=0,TOP=Math.round((BD?42:30)*K),HH=22,CH=24*HH,cw=(VW-AXW)/zoomDays,SMALL=cw<34,FOOT=Math.round((SMALL?46:88)*K),W=N*cw,STATS=statCfg().filter(x=>x.on),PH=SMALL?56:76,SH=22+PH+(SMALL?6:14)+8,ST0=TOP+CH+FOOT+10,H=ST0+STATS.length*SH,now=Date.now(),today=+dayStart(new Date());
  const CC=k=>getComputedStyle(document.documentElement).getPropertyValue('--ch-'+k).trim();
@@ -900,6 +910,14 @@ function renderSettings(p){
   p.append(sec('체온 정상 범위 (두 폰 공통)',h('div',{style:'display:flex;gap:8px'},h('div',{style:'flex:1'},field('최저 ℃',lo)),h('div',{style:'flex:1'},field('최고 ℃',hi))),
    h('button',{class:'btn pri',onclick:async()=>{const a=parseFloat(lo.value),b=parseFloat(hi.value);if(!(a>30&&b>a&&b<45)){alert('범위를 확인해 주세요');return}config.tempRange={min:a,max:b};try{await saveConfig();toast('체온 범위 저장됨')}catch(e){alert(e.message)}}},'저장'),
    h('div',{class:'hint'},'범위 안이면 초록, 밖이면 빨간 숫자로 보이고, 범위를 벗어난 기록이 들어오면 두 폰에 바로 알림이 가요.\n지금 범위는 36.4~37.8℃예요. 재는 부위(귀·이마·항문)에 따라 다를 수 있으니 소아과 안내에 맞게 바꿔 주세요.')));}
+ // 차트 보기
+ {const big=LS.get('bl_big',false),favs=getFavs();
+  p.append(sec('차트 보기 (이 폰에만 적용)',
+   h('div',{class:'chips',style:'margin:0 0 8px'},[[false,'작게 (기본)'],[true,'크게 (아이콘·글자 1.35배)']].map(([v,l])=>h('button',{class:'chip'+(big===v?' big':''),style:big===v?'outline:2px solid #FFD54A':'',onclick:()=>{LS.set('bl_big',v);renderTab()}},l))),
+   h('div',{class:'hint',style:'margin-bottom:6px'},'즐겨찾기 (차트 위 버튼줄에 나와요 · ✕로 빼기)'),
+   h('div',{class:'chips',style:'margin:0'},favs.map((f,i)=>h('button',{class:'chip',onclick:()=>{const fs=getFavs();fs.splice(i,1);LS.set('bl_favs',fs);renderTab()}},`⭐ ${favLabel(f)} ✕`)),
+    h('button',{class:'chip',onclick:()=>{LS.set('bl_favs',DEF_FAVS);renderTab()}},'기본값으로')),
+   h('div',{class:'hint'},'차트 위 ☆를 누르면 지금 보고 있는 날짜 수·크기를 즐겨찾기에 추가해요.')));}
  // 통계 그래프
  {const all=statCfg();
   const rows=all.map((st,i)=>h('div',{class:'strow'},
