@@ -1,7 +1,7 @@
 # Baby-Log 인수인계 메모 (새 대화 / 비슷한 프로젝트용)
 
 > 새 대화에서: "jaybaek-git/Baby-Log 의 HANDOFF.md 먼저 읽고 시작해 줘" 라고 하면 됩니다.
-> 마지막 버전: **v1.17** (2026-11-19)
+> 마지막 버전: **v1.17.1** (2026-11-19)
 
 ## 1. 무엇을 만들었나
 - 신생아 기록 웹앱. 아빠·엄마 두 iPhone에서 같이 기록 (홈 화면에 추가한 PWA)
@@ -30,8 +30,9 @@
 - RPC: add_event, toggle_event, list_events, update_event, delete_event, import_events, get_config, set_config, alarm_status, test_push, save_push_sub, get_vapid_public, list_backups, backup_now, restore_backup, **voice_log**(음성 문장 해석)
 - 트리거: 함께 기록(alsoLog), 수면 자동 종료(ends), 시간 반올림, 체온 경고, 상대방 기록 알림
 - pg_cron(매 분): 수유 알림, 챙기기 알림, 상대방 알림, 수유 지연 경고 / 30분마다 백업
+- 동기화: 2초마다 `sync_stamp()`(변경 번호)만 확인 → 바뀌면 list_events. 트리거 `trg_bump_sync`가 events/app_config 변경 시 번호 증가
 - 알림: pg_net → Edge Function `push`(`edge_function_push.ts`, web-push, VAPID 키는 DB에) / 기록한 사람 폰은 제외
-- SQL 적용 순서: `supabase_setup.sql` → v1.1 → v1.3 → v1.4 → v1.6 → v1.8 → v1.9 → v1.11 → v1.13 → v1.14 → v1.15 → v1.16_voice → v1.16_memo
+- SQL 적용 순서: `supabase_setup.sql` → v1.1 → v1.3 → v1.4 → v1.6 → v1.8 → v1.9 → v1.11 → v1.13 → v1.14 → v1.15 → v1.16_voice → v1.16_memo → v1.17_sync
 
 ## 4. 꼭 알아야 할 함정
 - **iOS 18 홈 화면 앱에서 키보드가 안 뜸** (Safari에서는 뜸). 앱 버그 아님 → 숫자는 화면 숫자패드(`numPad`), 글자는 ✏️ `prompt()`·연결 코드 붙여넣기로 우회. 아이콘 삭제 후 다시 추가하면 고쳐질 수 있음

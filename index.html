@@ -140,7 +140,7 @@ function applyTheme(){let t='dark';try{t=JSON.parse(localStorage.getItem('bl_the
  if(t==='auto')t=matchMedia('(prefers-color-scheme: light)').matches?'light':'dark';
  document.documentElement.dataset.theme=t;const m=document.querySelector('meta[name=theme-color]');if(m)m.content=t==='light'?'#f4f5f7':'#0f1115'}
 applyTheme();
-const APP_VERSION='v1.17';
+const APP_VERSION='v1.17.1';
 const DEFAULT_TYPES=[
  {id:'breast',name:'모유수유',emoji:'🤱',color:'#FFD54A',kind:'duration',enabled:true,feed:true,ends:['sleep'],unit:'ml',presets:[10,20,30,40,60],tags:['왼쪽','오른쪽','양쪽']},
  {id:'formula',name:'분유',emoji:'🍼',color:'#FF9F43',kind:'point',enabled:true,feed:true,ends:['sleep'],unit:'ml',presets:[20,40,60,80,100,120],defaultValue:60},
@@ -1114,7 +1114,13 @@ document.addEventListener('visibilitychange',()=>{if(!document.hidden)refresh()}
  await loadConfig();await refresh();
  const q=new URLSearchParams(location.search).get('add');
  if(q){history.replaceState(null,'',location.pathname);const t=config.types.find(x=>x.id===q);if(t)onTap(t)}
- setInterval(()=>{if(remote())refresh();else renderLive()},30000);
+ // 빠른 동기화: 2초마다 '변경 번호'만 확인 → 바뀌었을 때만 전체 새로 받기 (없으면 30초 전체 갱신)
+ let stamp=null,fastOk=true,stBusy=false,lastFull=Date.now();
+ setInterval(async()=>{if(!remote()||document.hidden||stBusy)return;
+  if(!fastOk){if(Date.now()-lastFull>=30000){lastFull=Date.now();refresh()}return}
+  stBusy=true;try{const n=await rpc('sync_stamp',{p_code:dev.code});if(stamp!==null&&n!==stamp){lastFull=Date.now();await refresh()}stamp=n}
+  catch(e){if(/sync_stamp|PGRST202|404/.test(String(e&&e.message)))fastOk=false}finally{stBusy=false}},2000);
+ setInterval(()=>{if(!remote())renderLive();else if(Date.now()-lastFull>=300000){lastFull=Date.now();refresh()}},30000);
  setInterval(()=>whenIdle(renderLive),15000);
 })();
 </script>
