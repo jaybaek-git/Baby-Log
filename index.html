@@ -142,7 +142,7 @@ function applyTheme(){let t='dark';try{t=JSON.parse(localStorage.getItem('bl_the
  if(t==='auto')t=matchMedia('(prefers-color-scheme: light)').matches?'light':'dark';
  document.documentElement.dataset.theme=t;const m=document.querySelector('meta[name=theme-color]');if(m)m.content=t==='light'?'#f4f5f7':'#0f1115'}
 applyTheme();
-const APP_VERSION='v1.17.8';
+const APP_VERSION='v1.17.9';
 const DEFAULT_TYPES=[
  {id:'breast',name:'모유수유',emoji:'🤱',color:'#FFD54A',kind:'duration',enabled:true,feed:true,ends:['sleep'],unit:'ml',presets:[10,20,30,40,60],tags:['왼쪽','오른쪽','양쪽']},
  {id:'formula',name:'분유',emoji:'🍼',color:'#FF9F43',kind:'point',enabled:true,feed:true,ends:['sleep'],unit:'ml',presets:[20,40,60,80,100,120],defaultValue:60},
@@ -617,6 +617,7 @@ function renderChart(p){
  const GUT=0;
  const fy=(t,ds)=>TOP+(t-ds)/36e5*HH;
  const span=e=>{const a=+new Date(e.start_at);if(T(e.type).kind!=='duration')return [a,a];let b=e.end_at?+new Date(e.end_at):(isOpen(e)?now:a);return [a,Math.max(a,b)]};
+ const ICB={};
  days.forEach((d,i)=>{const ds=+d,de=ds+864e5,x=AX+i*cw,inner=cw-6-GUT,x0=x+3;
   const items=main.map(e=>{const [a,b]=span(e);return {e,a,b}}).filter(o=>T(o.e.type).kind==='duration'?(o.a<de&&o.b>=ds):(o.a>=ds&&o.a<de))
    .map(o=>({...o,s:Math.max(o.a,ds),t:Math.min(o.b,de)})).sort((p,q)=>p.s-q.s);
@@ -641,23 +642,23 @@ function renderChart(p){
    s+=`<rect x="${cxm-inner*.22}" y="${y-4}" width="${inner*.44}" height="8" rx="4" fill="${t.color}" stroke="${CC('mk')}" stroke-width="1"/>`;
    s+=`<rect data-id="${esc(e.id)}" x="${cxm-12}" y="${y-10}" width="24" height="20" fill="transparent"/>`});
   const dayMk=mks.filter(e=>{const a=+new Date(e.start_at);return a>=ds&&a<de});
-  const temps=dayMk.filter(e=>e.type==='temp'),vits=dayMk.filter(e=>e.type==='vitamin'),usedV=new Set();
-  const vitIcon=(e,cx,y)=>`<circle cx="${cx}" cy="${y}" r="${6.2*K}" fill="${CC('col')}" stroke="${T('vitamin').color}" stroke-width="1.4"/><text x="${cx}" y="${y+2.9*K}" text-anchor="middle" font-size="${(8*K).toFixed(1)}">💊</text><circle data-id="${esc(e.id)}" cx="${cx}" cy="${y}" r="10" fill="transparent"/>`;
-  temps.forEach(e=>{const a=+new Date(e.start_at),y=fy(a,ds)-4;
-   const v=vits.find(v=>!usedV.has(v.id)&&Math.abs(+new Date(v.start_at)-a)<=15*6e4),off=v?Math.min(7*K,inner*.2):0,cx=x0+inner/2-off;
-   const tc=e.value!=null?tempCol(+e.value):T('temp').color;
-   s+=`<circle cx="${cx}" cy="${y}" r="${6.2*K}" fill="${CC('col')}" stroke="${tc}" stroke-width="1.4"/><text x="${cx}" y="${y+2.9*K}" text-anchor="middle" font-size="${(8*K).toFixed(1)}">🌡️</text>`;
-   if(v){usedV.add(v.id);s+=vitIcon(v,x0+inner/2+off,y)}
-   s+=`<circle data-id="${esc(e.id)}" cx="${cx}" cy="${y}" r="10" fill="transparent"/>`});
-  vits.filter(v=>!usedV.has(v.id)).forEach(e=>{const y=fy(+new Date(e.start_at),ds)-4,cx=x0+inner/2;
-   s+=vitIcon(e,cx,y)});
-  dayMk.filter(e=>e.type==='memo').forEach(e=>{const y=fy(+new Date(e.start_at),ds)-4,cx=x0+Math.min(9*K,inner*.3),r=6.2*K,c=memoParse(e.note).cat;
-   s+=`<circle cx="${cx}" cy="${y}" r="${r}" fill="${CC('col')}" stroke="#B39DDB" stroke-width="1.4"/><text x="${cx}" y="${y+2.9*K}" text-anchor="middle" font-size="${(8*K).toFixed(1)}">${c.e}</text><circle data-id="${esc(e.id)}" cx="${cx}" cy="${y}" r="12" fill="transparent"/>`});
+  const R0=6.2*K,pl=[];ICB[i]=pl;
+  L3.filter(o=>o.e.type==='diaper').forEach(o=>{const r=Math.min(6.5*K,cw*.3),dx=x0+r*1.2,dy=fy(o.s,ds)-4;pl.push([dx-r*1.2,dx+r*1.2,dy-r,dy+r*.9])});
+  dayMk.filter(e=>e.type==='bath').forEach(e=>{const y=fy(+new Date(e.start_at),ds)-4,cx=x+cw-10*K;pl.push([cx-8*K,cx+8*K,y-8*K,y+6*K])});
   dayMk.filter(e=>e.type!=='temp'&&e.type!=='vitamin'&&e.type!=='memo').forEach(e=>{const y=fy(+new Date(e.start_at),ds)-4,t=T(e.type),cx=x+cw-(e.type==='bath'?10*K:7);
    s+=(e.type==='bath'?`<g transform="translate(${cx} ${y}) scale(${K}) translate(${-cx} ${-y})">${tubSvg(cx,y+.5,t.color,CC('mk'))}</g>`:`<circle cx="${cx}" cy="${y}" r="4.5" fill="${t.color}" stroke="${CC('mk')}" stroke-width="1.5"/>`)+`<circle data-id="${esc(e.id)}" cx="${cx}" cy="${y}" r="11" fill="transparent"/>`});
+  const free=(cx,cy,r)=>cx-r>=x+1&&cx+r<=x+cw-1&&pl.every(([a1,a2,b1,b2])=>cx+r<=a1||cx-r>=a2||cy+r<=b1||cy-r>=b2);
+  const place=(px,py)=>{const r=R0+.6,xs=[];for(let xx=x+1+r;xx<=x+cw-1-r+.01;xx+=r*.9)xs.push(xx);xs.sort((a,b)=>Math.abs(a-px)-Math.abs(b-px));
+   for(const dy of [0,-(2*r+1),2*r+1,-(4*r+2),4*r+2])for(const xx of [px,...xs]){const yy=py+dy;if(yy<TOP+r||yy>TOP+CH-r)continue;if(free(xx,yy,r)){pl.push([xx-r,xx+r,yy-r,yy+r]);return [xx,yy]}}
+   pl.push([px-r,px+r,py-r,py+r]);return [px,py]};
+  const ricon=(e,cx,cy,emo,stroke)=>`<circle cx="${cx}" cy="${cy}" r="${R0}" fill="${CC('col')}" stroke="${stroke}" stroke-width="1.4"/><text x="${cx}" y="${cy+2.9*K}" text-anchor="middle" font-size="${(8*K).toFixed(1)}">${emo}</text><circle data-id="${esc(e.id)}" cx="${cx}" cy="${cy}" r="10" fill="transparent"/>`;
   const inDay=e=>{const a=+new Date(e.start_at);return a>=ds&&a<de};
-  if(!hidden.has('weight'))events.filter(e=>e.type==='weight'&&inDay(e)).forEach(e=>{const y=fy(+new Date(e.start_at),ds)-13*K,cx=x+cw-6.5*K;
-   s+=`<circle cx="${cx}" cy="${y}" r="${6.2*K}" fill="${CC('col')}" stroke="${T('weight').color}" stroke-width="1.4"/><text x="${cx}" y="${y+2.9*K}" text-anchor="middle" font-size="${(8*K).toFixed(1)}">⚖️</text><circle data-id="${esc(e.id)}" cx="${cx}" cy="${y}" r="10" fill="transparent"/>`});
+  const rItems=[];
+  dayMk.filter(e=>e.type==='temp').forEach(e=>rItems.push({e,emo:'🌡️',st:e.value!=null?tempCol(+e.value):T('temp').color,px:x0+inner/2}));
+  dayMk.filter(e=>e.type==='vitamin').forEach(e=>rItems.push({e,emo:'💊',st:T('vitamin').color,px:x0+inner/2}));
+  dayMk.filter(e=>e.type==='memo').forEach(e=>rItems.push({e,emo:memoParse(e.note).cat.e,st:'#B39DDB',px:x0+Math.min(9*K,inner*.3)}));
+  if(!hidden.has('weight'))events.filter(e=>e.type==='weight'&&inDay(e)).forEach(e=>rItems.push({e,emo:'⚖️',st:T('weight').color,px:x+cw-6.5*K,dy:-9*K}));
+  rItems.sort((a,b)=>new Date(a.e.start_at)-new Date(b.e.start_at)).forEach(o=>{const [cx,cy]=place(o.px,fy(+new Date(o.e.start_at),ds)-4+(o.dy||0));s+=ricon(o.e,cx,cy,o.emo,o.st)});
   const feeds=events.filter(e=>T(e.type).feed&&inDay(e)).length,dia=events.filter(e=>e.type==='diaper'&&inDay(e)).length;
   let sl=0;events.filter(e=>e.type==='sleep').forEach(e=>{const a=+new Date(e.start_at);let b=e.end_at?+new Date(e.end_at):(isOpen(e)?now:a);sl+=Math.max(0,Math.min(b,de)-Math.max(a,ds))});
   const ml=events.filter(e=>T(e.type).feed&&T(e.type).unit==='ml'&&e.value!=null&&inDay(e)).reduce((t,e)=>t+Number(e.value),0);
@@ -670,14 +671,10 @@ function renderChart(p){
  });
  const pills={},gu={};
  const occ={};{const box=(i,x1,x2,y1,y2)=>(occ[i]=occ[i]||[]).push([x1,x2,y1,y2]);
-  events.forEach(e=>{const t=T(e.type);const a=+new Date(e.start_at),i=Math.floor((a-+days[0])/864e5);if(i<0||i>=N)return;
-   const x=AX+i*cw,inner=cw-6,x0=x+3,y=fy(a,+days[i]),R=6.6*K;
-   if(t.feed){if(t.kind==='duration'){const b=e.end_at?+new Date(e.end_at):a;box(i,x0,x0+inner,y,Math.max(y+8,fy(Math.min(b,+days[i]+864e5),+days[i])))}else box(i,x0,x0+inner,y-6,y+6);return}
-   if(e.type==='diaper'){const r=Math.min(6.5*K,cw*.3),dx=x0+r*1.2;box(i,dx-r*1.2,dx+r*1.2,y-4-r,y-4+r*.9);return}
-   if(e.type==='temp'||e.type==='vitamin'){box(i,x0+inner/2-7*K-R,x0+inner/2+7*K+R,y-4-R,y-4+R);return}
-   if(e.type==='memo'){const cx=x0+Math.min(9*K,inner*.3);box(i,cx-R,cx+R,y-4-R,y-4+R);return}
-   if(e.type==='bath'){const cx=x+cw-10*K;box(i,cx-8*K,cx+8*K,y-12*K,y+4*K);return}
-   if(e.type==='weight'){const cx=x+cw-6.5*K;box(i,cx-R,cx+R,y-13*K-R,y-13*K+R)}})}
+  events.forEach(e=>{const t=T(e.type);if(!t.feed)return;const a=+new Date(e.start_at),i=Math.floor((a-+days[0])/864e5);if(i<0||i>=N)return;
+   const x=AX+i*cw,inner=cw-6,x0=x+3,y=fy(a,+days[i]);
+   if(t.kind==='duration'){const b=e.end_at?+new Date(e.end_at):a;box(i,x0,x0+inner,y,Math.max(y+8,fy(Math.min(b,+days[i]+864e5),+days[i])))}else box(i,x0,x0+inner,y-6,y+6)});
+  for(const k in ICB)(occ[k]=occ[k]||[]).push(...ICB[k])}
  const GOP=+LS.get('bl_gapOp',1),GMODE=LS.get('bl_gapMode','smart'),GLONG=3*36e5;if(!hidden.has('_gap')&&!SMALL){
   const fs=events.filter(e=>T(e.type).feed&&!isOpen(e)).map(e=>{const a=+new Date(e.start_at);return {s:a,e:T(e.type).kind==='duration'?(e.end_at?+new Date(e.end_at):a):a}}).sort((p,q)=>p.s-q.s);
   const ses=[];fs.forEach(f=>{const g=ses[ses.length-1];if(g&&f.s<=g.e+30*6e4)g.e=Math.max(g.e,f.e);else ses.push({s:f.s,e:f.e})});
