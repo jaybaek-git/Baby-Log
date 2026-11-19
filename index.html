@@ -142,7 +142,7 @@ function applyTheme(){let t='dark';try{t=JSON.parse(localStorage.getItem('bl_the
  if(t==='auto')t=matchMedia('(prefers-color-scheme: light)').matches?'light':'dark';
  document.documentElement.dataset.theme=t;const m=document.querySelector('meta[name=theme-color]');if(m)m.content=t==='light'?'#f4f5f7':'#0f1115'}
 applyTheme();
-const APP_VERSION='v1.17.9';
+const APP_VERSION='v1.17.10';
 const DEFAULT_TYPES=[
  {id:'breast',name:'모유수유',emoji:'🤱',color:'#FFD54A',kind:'duration',enabled:true,feed:true,ends:['sleep'],unit:'ml',presets:[10,20,30,40,60],tags:['왼쪽','오른쪽','양쪽']},
  {id:'formula',name:'분유',emoji:'🍼',color:'#FF9F43',kind:'point',enabled:true,feed:true,ends:['sleep'],unit:'ml',presets:[20,40,60,80,100,120],defaultValue:60},
@@ -692,11 +692,11 @@ function renderChart(p){
      let pcx=x+cw/2,pw=40*K,cmp=false;
      if(GMODE==='smart'||GMODE==='both'){const os=occ[i]||[],ph=7*K,lo=Math.max(y0,TOP)+ph+2,hi=Math.min(y1,TOP+CH)-ph-2;
       const fits=(cx,w,c)=>os.every(([a1,a2,b1,b2])=>cx+w/2<=a1||cx-w/2>=a2||c+ph<=b1||c-ph>=b2);
-      const cw2=28*K,shapes=[[x+cw/2,40*K,false],[x+cw/2,cw2,true],[x+cw-cw2/2-1,cw2,true],[x+cw2/2+1,cw2,true]];let best=null;
-      for(let d=0;d<=90&&!best;d+=2)for(const c of d?[ym-d,ym+d]:[ym]){if(c<lo||c>hi)continue;for(const [cx,w,k] of shapes)if(fits(cx,w,c)){best=[cx,w,k,c];break}if(best)break}
+      const cw2=28*K,fw=Math.min(38*K,cw-2),passes=[[[x+cw/2,fw,false],[x+cw-fw/2-1,fw,false],[x+fw/2+1,fw,false]],[[x+cw/2,cw2,true],[x+cw-cw2/2-1,cw2,true],[x+cw2/2+1,cw2,true]]];let best=null;
+      for(const shapes of passes){for(let d=0;d<=200&&!best;d+=2)for(const c of d?[ym-d,ym+d]:[ym]){if(c<lo||c>hi)continue;for(const [cx,w,k] of shapes)if(fits(cx,w,c)){best=[cx,w,k,c];break}if(best)break}if(best)break}
       if(!best)under=true;else{[pcx,pw,cmp,ym]=best}}
      const txt=agoS(gap).replace('분','m');(pills[i]=pills[i]||[]).push(ym);
-     {const pg=`<g opacity="${GOP}" style="pointer-events:none"><rect x="${pcx-pw/2}" y="${ym-7*K}" width="${pw}" height="${14*K}" rx="${7*K}" fill="${CC('col')}" stroke="#FFD54A" stroke-opacity=".6" stroke-width="1"/>${cmp?'':`<text x="${pcx-13*K}" y="${ym+3.5*K}" text-anchor="middle" font-size="${(8*K).toFixed(1)}">🍼</text>`}<text x="${cmp?pcx:pcx+5*K}" y="${ym+3.5*K}" text-anchor="middle" font-size="${(9.5*K).toFixed(1)}" font-weight="700" fill="#E0A800">${txt}</text></g>`;if(under)gu[i]=(gu[i]||'')+pg;else s+=pg}}
+     {const pg=`<g opacity="${GOP}" style="pointer-events:none"><rect x="${pcx-pw/2}" y="${ym-7*K}" width="${pw}" height="${14*K}" rx="${7*K}" fill="${CC('col')}" stroke="#FFD54A" stroke-opacity=".6" stroke-width="1"/>${cmp?'':`<text x="${pcx-pw/2+7*K}" y="${ym+3.5*K}" text-anchor="middle" font-size="${(8*K).toFixed(1)}">🍼</text>`}<text x="${cmp?pcx:pcx+6*K}" y="${ym+3.5*K}" text-anchor="middle" font-size="${(9.5*K).toFixed(1)}" font-weight="700" fill="#E0A800">${txt}</text></g>`;if(under)gu[i]=(gu[i]||'')+pg;else s+=pg}}
    })}
  }
  moons.forEach(e=>{const a=+new Date(e.start_at),op=isOpen(e),b=e.end_at?+new Date(e.end_at):(op?now:a),mid=(a+Math.max(a,b))/2;
