@@ -57,7 +57,7 @@ header h1{font-size:21px;margin:0;white-space:nowrap;overflow:hidden;text-overfl
 .tb .rsz{position:absolute;top:4px;right:4px;font-size:11px;font-weight:700;padding:3px 7px;border-radius:9px;background:#FFD54A;color:#111;z-index:2;line-height:1.2}.tb.sm .rsz{top:3px;right:3px;padding:2px 6px}
 .tb.jig{touch-action:none;animation:jig .35s ease-in-out infinite alternate;-webkit-user-select:none;user-select:none}.tb.jig:nth-child(odd){animation-delay:.15s}
 @keyframes jig{from{transform:rotate(-1.2deg)}to{transform:rotate(1.2deg)}}
-.tb.drag{animation:none;transform:scale(1.06);box-shadow:0 6px 18px rgba(0,0,0,.25);z-index:3;opacity:.9}
+.tb.drag{animation:none;box-shadow:0 8px 22px rgba(0,0,0,.35);z-index:5;opacity:.92;transition:none}.tb.dropT{animation:none;outline:3px dashed #FFD54A;outline-offset:-3px}
 .tb{-webkit-touch-callout:none;-webkit-user-select:none;user-select:none}
 .tb:active{transform:scale(.96)}
 @keyframes blink{50%{opacity:.2}}
@@ -138,7 +138,7 @@ function applyTheme(){let t='dark';try{t=JSON.parse(localStorage.getItem('bl_the
  if(t==='auto')t=matchMedia('(prefers-color-scheme: light)').matches?'light':'dark';
  document.documentElement.dataset.theme=t;const m=document.querySelector('meta[name=theme-color]');if(m)m.content=t==='light'?'#f4f5f7':'#0f1115'}
 applyTheme();
-const APP_VERSION='v1.16.1';
+const APP_VERSION='v1.16.2';
 const DEFAULT_TYPES=[
  {id:'breast',name:'모유수유',emoji:'🤱',color:'#FFD54A',kind:'duration',enabled:true,feed:true,ends:['sleep'],unit:'ml',presets:[10,20,30,40,60],tags:['왼쪽','오른쪽','양쪽']},
  {id:'formula',name:'분유',emoji:'🍼',color:'#FF9F43',kind:'point',enabled:true,feed:true,ends:['sleep'],unit:'ml',presets:[20,40,60,80,100,120],defaultValue:60},
@@ -333,7 +333,7 @@ function renderButtons(){
 function attachBtnPointer(b){
  let lp=null,sx=0,sy=0;
  b.addEventListener('pointerdown',e=>{sx=e.clientX;sy=e.clientY;
-  if(btnEdit){btnDrag=b;b.classList.add('drag');e.preventDefault();return}
+  if(btnEdit){btnDrag=b;b._sx=e.clientX;b._sy=e.clientY;b._drop=null;b.classList.add('drag');b.style.transform='scale(1.06)';e.preventDefault();return}
   suppressClick=false;lp=setTimeout(()=>{lp=null;btnEdit=true;suppressClick=true;renderButtons();if(navigator.vibrate)navigator.vibrate(20)},550)});
  b.addEventListener('pointermove',e=>{if(lp&&Math.hypot(e.clientX-sx,e.clientY-sy)>10){clearTimeout(lp);lp=null}});
  const stop=()=>{if(lp){clearTimeout(lp);lp=null}};
@@ -341,11 +341,14 @@ function attachBtnPointer(b){
  b.addEventListener('contextmenu',e=>e.preventDefault());
 }
 document.addEventListener('pointermove',e=>{const b=btnDrag;if(!b)return;e.preventDefault();
- const el=document.elementFromPoint(e.clientX,e.clientY);const tgt=el&&el.closest('#btns .tb');
- if(tgt&&tgt!==b){const all=[...$('#btns').querySelectorAll('.tb')];
-  if(all.indexOf(tgt)<all.indexOf(b))tgt.parentNode.insertBefore(b,tgt);else tgt.parentNode.insertBefore(b,tgt.nextSibling)}},{passive:false});
-const dragEnd=()=>{const b=btnDrag;if(!b)return;b.classList.remove('drag');btnDrag=null;
- LS.set('bl_order',[...$('#btns').querySelectorAll('.tb')].map(x=>x.dataset.id));renderButtons()};
+ b.style.transform=`translate(${e.clientX-b._sx}px,${e.clientY-b._sy}px) scale(1.06)`;
+ const tgt=document.elementsFromPoint(e.clientX,e.clientY).map(x=>x.closest&&x.closest('#btns .tb')).find(x=>x&&x!==b)||null;
+ if(tgt!==b._drop){if(b._drop)b._drop.classList.remove('dropT');b._drop=tgt;if(tgt)tgt.classList.add('dropT')}},{passive:false});
+const dragEnd=()=>{const b=btnDrag;if(!b)return;btnDrag=null;b.classList.remove('drag');b.style.transform='';
+ const tgt=b._drop;b._drop=null;
+ if(tgt){tgt.classList.remove('dropT');const ids=[...$('#btns').querySelectorAll('.tb')].map(x=>x.dataset.id),from=ids.indexOf(b.dataset.id),to=ids.indexOf(tgt.dataset.id);
+  ids.splice(from,1);ids.splice(to,0,b.dataset.id);LS.set('bl_order',ids)}
+ renderButtons()};
 document.addEventListener('pointerup',dragEnd);document.addEventListener('pointercancel',dragEnd);
 async function onTap(t){
  if(t.id==='memo'){openMemo();return}
