@@ -141,7 +141,7 @@ function applyTheme(){let t='dark';try{t=JSON.parse(localStorage.getItem('bl_the
  if(t==='auto')t=matchMedia('(prefers-color-scheme: light)').matches?'light':'dark';
  document.documentElement.dataset.theme=t;const m=document.querySelector('meta[name=theme-color]');if(m)m.content=t==='light'?'#f4f5f7':'#0f1115'}
 applyTheme();
-const APP_VERSION='v1.17.4';
+const APP_VERSION='v1.17.5';
 const DEFAULT_TYPES=[
  {id:'breast',name:'모유수유',emoji:'🤱',color:'#FFD54A',kind:'duration',enabled:true,feed:true,ends:['sleep'],unit:'ml',presets:[10,20,30,40,60],tags:['왼쪽','오른쪽','양쪽']},
  {id:'formula',name:'분유',emoji:'🍼',color:'#FF9F43',kind:'point',enabled:true,feed:true,ends:['sleep'],unit:'ml',presets:[20,40,60,80,100,120],defaultValue:60},
@@ -620,7 +620,7 @@ function renderChart(p){
    s+=`<rect x="${x0+pad}" y="${y0+pad}" width="${inner-pad*2}" height="${Math.min(inH,total-pad*2)}" rx="2.5" fill="${tb.color}" style="pointer-events:none"/>`});
   L2.filter(o=>!paired.has(o)).forEach(o=>{const e=o.e,t=T(e.type);
    if(isDur(o)){const y0=fy(o.s,ds),y1=fy(o.t,ds),op=isOpen(e);s+=`<rect data-id="${esc(e.id)}" x="${x0}" y="${y0}" width="${inner}" height="${Math.max(8,y1-y0)}" rx="3" fill="${t.color}" fill-opacity="${op?.5:.95}"${op?` stroke="${t.color}" stroke-dasharray="3 2"`:''}/>`}
-   else{const y=fy(o.s,ds),bh=LS.get('bl_gapMode','pill')==='bar'?11*K:8;s+=`<rect x="${x0}" y="${y-bh/2}" width="${inner}" height="${bh}" rx="3" fill="${t.color}"/><rect data-id="${esc(e.id)}" x="${x0}" y="${y-9}" width="${inner}" height="18" fill="transparent"/>`}});
+   else{const y=fy(o.s,ds),bh=LS.get('bl_gapMode','smart')==='bar'?11*K:8;s+=`<rect x="${x0}" y="${y-bh/2}" width="${inner}" height="${bh}" rx="3" fill="${t.color}"/><rect data-id="${esc(e.id)}" x="${x0}" y="${y-9}" width="${inner}" height="18" fill="transparent"/>`}});
   L3.forEach(o=>{const e=o.e,t=T(e.type),y=fy(o.s,ds);
    if(e.type==='diaper'){const c=diaperColor(e),r=Math.min(6.5*K,cw*.3),dx=x0+r*1.2,dy=y-4;s+=`<path d="${diaperPath(dx,dy,r)}" fill="${c}" stroke="${CC('mk')}" stroke-width="1.1" stroke-linejoin="round"/><line x1="${dx-r*1.05}" x2="${dx+r*1.05}" y1="${dy-r*0.45}" y2="${dy-r*0.45}" stroke="${CC('mk')}" stroke-width="0.7" stroke-opacity=".6"/>`;
     s+=`<rect data-id="${esc(e.id)}" x="${dx-11}" y="${dy-10}" width="22" height="20" fill="transparent"/>`;return}
@@ -655,18 +655,27 @@ function renderChart(p){
   s+=`<text x="${cx}" y="${fy0+69*K}" text-anchor="middle" font-size="${(10*K).toFixed(1)}" fill="${tv?tempCol(tv.value):CC('ax')}" font-weight="${tv?700:400}">${tv?(cw>=60?'🌡':'')+(+tv.value).toFixed(1)+'℃':'🌡-'}</text><text x="${cx}" y="${fy0+83*K}" text-anchor="middle" font-size="${(10*K).toFixed(1)}" fill="${wv?CC('txt'):CC('ax')}" font-weight="${wv?600:400}">${wv?(cw>=56?'⚖':'')+(+wv.value).toFixed(1)+'kg':'⚖-'}</text>`;
  });
  const pills={};
- const GOP=+LS.get('bl_gapOp',1),GMODE=LS.get('bl_gapMode','pill'),GLONG=3*36e5;if(!hidden.has('_gap')&&!SMALL){
+ const occ={};{const mkT=new Set(['diaper','temp','vitamin','memo','weight','bath']);
+  events.forEach(e=>{const t=T(e.type);if(!(mkT.has(e.type)||(t.feed&&t.kind!=='duration')))return;const a=+new Date(e.start_at),i=Math.floor((a-+days[0])/864e5);if(i<0||i>=N)return;
+   (occ[i]=occ[i]||[]).push(fy(a,+days[i])-(e.type==='weight'?13*K:t.feed?0:4))})}
+ const GOP=+LS.get('bl_gapOp',1),GMODE=LS.get('bl_gapMode','smart'),GLONG=3*36e5;if(!hidden.has('_gap')&&!SMALL){
   const fs=events.filter(e=>T(e.type).feed&&!isOpen(e)).map(e=>{const a=+new Date(e.start_at);return {s:a,e:T(e.type).kind==='duration'?(e.end_at?+new Date(e.end_at):a):a}}).sort((p,q)=>p.s-q.s);
   const ses=[];fs.forEach(f=>{const g=ses[ses.length-1];if(g&&f.s<=g.e+30*6e4)g.e=Math.max(g.e,f.e);else ses.push({s:f.s,e:f.e})});
   const r0=+days[0],r1=+days[N-1]+864e5;
   for(let k=1;k<ses.length;k++){const a=ses[k-1].e,b=ses[k].s,gap=b-a;if(gap<20*6e4||gap>8*36e5||b<r0||a>r1)continue;
    days.forEach((d,i)=>{const ds=+d,de=ds+864e5;if(b<=ds||a>=de)return;const x=AX+i*cw,y0=fy(Math.max(a,ds),ds),y1=fy(Math.min(b,de),ds);
-    s+=`<line x1="${x+cw/2}" x2="${x+cw/2}" y1="${y0+5}" y2="${y1-5}" stroke="#FFD54A" stroke-opacity=".55" stroke-width="1.5" stroke-dasharray="2 3"/>`;
+    {const CL=GMODE==='color'||GMODE==='both';const gc=CL?(gap<2.5*36e5?'#43A047':gap<3*36e5?'#F9A825':'#E53935'):'#FFD54A';
+     s+=`<line x1="${x+cw/2}" x2="${x+cw/2}" y1="${y0+5}" y2="${y1-5}" stroke="${gc}" stroke-opacity="${CL?.9:.55}" stroke-width="${CL?3:1.5}" stroke-dasharray="${CL?'':'2 3'}" stroke-linecap="round"/>`}
     const mid=(a+b)/2,txt0=agoS(gap).replace('분','m');
     if(GMODE==='bar'){if(b>=ds&&b<de&&gap>=40*6e4){const yb=fy(b,ds);s+=`<text x="${x+cw/2}" y="${yb+3*K}" text-anchor="middle" font-size="${(8.5*K).toFixed(1)}" font-weight="800" fill="#5a3600" style="pointer-events:none">${txt0}</text>`}return}
     if(GMODE==='side'){if(mid>=ds&&mid<de&&gap>=40*6e4){const ym=fy(mid,ds);s+=`<text x="${x+cw-2}" y="${ym+3}" text-anchor="end" font-size="${(8*K).toFixed(1)}" font-weight="700" fill="#D4A000" opacity=".85" style="pointer-events:none">${txt0}</text>`}return}
+    if(GMODE==='color'){return}
     if(GMODE==='long'&&gap<GLONG)return;
-    if(GOP>0&&mid>=ds&&mid<de&&gap>=40*6e4){const ym=fy(mid,ds),txt=agoS(gap).replace('분','m');(pills[i]=pills[i]||[]).push(ym);
+    if(GOP>0&&mid>=ds&&mid<de&&gap>=40*6e4){let ym=fy(mid,ds);
+     if(GMODE==='smart'||GMODE==='both'){const os=occ[i]||[],lo=Math.max(y0,TOP)+9*K,hi=Math.min(y1,TOP+CH)-9*K,clear=c=>os.every(o=>Math.abs(o-c)>=13*K);let best=null;
+      for(let d=0;d<=60&&best==null;d+=3)for(const c of [ym-d,ym+d])if(c>=lo&&c<=hi&&clear(c)){best=c;break}
+      if(best==null)return;ym=best}
+     const txt=agoS(gap).replace('분','m');(pills[i]=pills[i]||[]).push(ym);
      s+=`<g opacity="${GOP}" style="pointer-events:none"><rect x="${x+cw/2-20*K}" y="${ym-7*K}" width="${40*K}" height="${14*K}" rx="${7*K}" fill="${CC('col')}" stroke="#FFD54A" stroke-opacity=".6" stroke-width="1"/><text x="${x+cw/2-13*K}" y="${ym+3.5*K}" text-anchor="middle" font-size="${(8*K).toFixed(1)}">🍼</text><text x="${x+cw/2+5*K}" y="${ym+3.5*K}" text-anchor="middle" font-size="${(9.5*K).toFixed(1)}" font-weight="700" fill="#E0A800">${txt}</text></g>`}
    })}
  }
@@ -923,6 +932,11 @@ function renderSettings(p){
    h('div',{class:'chips',style:'margin:0'},favs.map((f,i)=>h('button',{class:'chip',onclick:()=>{const fs=getFavs();fs.splice(i,1);LS.set('bl_favs',fs);renderTab()}},`⭐ ${favLabel(f)} ✕`)),
     h('button',{class:'chip',onclick:()=>{LS.set('bl_favs',DEF_FAVS);renderTab()}},'기본값으로')),
    h('div',{class:'hint'},'차트 위 ☆를 누르면 지금 보고 있는 날짜 수·크기를 즐겨찾기에 추가해요.')));}
+ // 수유 간격 표시
+ {const cur=LS.get('bl_gapMode','smart');
+  p.append(sec('수유 간격 표시 (이 폰에만 적용)',h('div',{class:'chips',style:'margin:0'},[['smart','빈자리 찾아 피하기 (기본)'],['pill','항상 가운데'],['color','선 색깔로'],['both','색깔 선 + 숫자']].map(([v,l])=>
+   h('button',{class:'chip'+(cur===v?' big':''),style:cur===v?'outline:2px solid #FFD54A':'',onclick:()=>{LS.set('bl_gapMode',v);renderTab()}},l))),
+   h('div',{class:'hint'},'빈자리 피하기: 간격 숫자가 아이콘을 가리면 그 간격 안의 빈자리로 옮겨요. 선 색깔: 초록 2시간 30분 미만 · 주황 3시간 미만 · 빨강 3시간 이상. 차트 범례의 "수유 간격"을 누르면 잠깐 숨길 수 있어요.')));}
  // 통계 그래프
  {const all=statCfg();
   const rows=all.map((st,i)=>h('div',{class:'strow'},
