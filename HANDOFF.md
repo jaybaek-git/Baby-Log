@@ -31,8 +31,9 @@
 - 트리거: 함께 기록(alsoLog), 수면 자동 종료(ends), 시간 반올림, 체온 경고, 상대방 기록 알림
 - pg_cron(매 분): 수유 알림, 챙기기 알림, 상대방 알림, 수유 지연 경고 / 30분마다 백업
 - 동기화: 2초마다 `sync_stamp()`(변경 번호)만 확인 → 바뀌면 list_events. 트리거 `trg_bump_sync`가 events/app_config 변경 시 번호 증가
+- 위젯: Scriptable 스크립트 `widget/BabyLog-Widget.js` → RPC `widget_status`
 - 알림: pg_net → Edge Function `push`(`edge_function_push.ts`, web-push, VAPID 키는 DB에) / 기록한 사람 폰은 제외
-- SQL 적용 순서: `supabase_setup.sql` → v1.1 → v1.3 → v1.4 → v1.6 → v1.8 → v1.9 → v1.11 → v1.13 → v1.14 → v1.15 → v1.16_voice → v1.16_memo → v1.17_sync
+- SQL 적용 순서: `supabase_setup.sql` → v1.1 → v1.3 → v1.4 → v1.6 → v1.8 → v1.9 → v1.11 → v1.13 → v1.14 → v1.15 → v1.16_voice → v1.16_memo → v1.17_sync → v1.18_widget
 
 ## 4. 꼭 알아야 할 함정
 - **iOS 18 홈 화면 앱에서 키보드가 안 뜸** (Safari에서는 뜸). 앱 버그 아님 → 숫자는 화면 숫자패드(`numPad`), 글자는 ✏️ `prompt()`·연결 코드 붙여넣기로 우회. 아이콘 삭제 후 다시 추가하면 고쳐질 수 있음
