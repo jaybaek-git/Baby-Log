@@ -95,6 +95,10 @@ header h1{font-size:21px;margin:0;white-space:nowrap;overflow:hidden;text-overfl
 .fld{display:block;margin-bottom:9px}.fld span{display:block;font-size:12px;color:var(--sub);margin-bottom:3px}
 .fldrow{display:flex;gap:6px;align-items:stretch}.fldrow input{flex:1;min-width:0}
 .pen{background:var(--btn);border:0;border-radius:8px;width:44px;flex:0 0 44px;font-size:16px}
+.bigv{display:flex;align-items:baseline;justify-content:center;gap:6px;background:var(--inp);border:1px solid var(--line);border-radius:12px;padding:6px 10px;margin:2px 0 6px;cursor:pointer;position:relative}.bigv b{font-size:30px;font-weight:800}.bigv .u{font-size:14px;color:var(--sub)}.bigv .r{font-size:12px;color:var(--sub);margin-left:6px}.bigv .k{position:absolute;right:10px;top:50%;transform:translateY(-50%);font-size:12px;color:var(--sub)}
+.stp{display:grid;gap:6px;margin:0 0 8px}.stp button{background:var(--btn);border:0;border-radius:10px;padding:10px 0;font-size:15px;font-weight:700;color:var(--txt)}
+.hmg{display:grid;grid-template-columns:repeat(6,1fr);gap:5px;margin:0 0 8px}.hmg button{background:var(--btn);border:0;border-radius:8px;padding:8px 0;font-size:13px;font-weight:600;color:var(--txt)}.hmg button.on{background:#FFD54A;color:#111}
+.tpl{font-size:12px;color:var(--sub);margin:4px 0 4px;display:flex;align-items:center;gap:8px}.tpl a{margin-left:auto;color:var(--sub);text-decoration:underline}
 .npad{display:grid;grid-template-columns:repeat(6,1fr);gap:5px;margin:-2px 0 10px}.npad button{background:var(--btn);border:0;border-radius:8px;padding:10px 0;font-size:18px;font-weight:600}
 .fld input,.fld select,.fld textarea{width:100%;background:var(--inp);border:1px solid var(--line);border-radius:8px;padding:9px;font-size:16px}
 .hint{font-size:12px;color:var(--sub);margin:6px 0;line-height:1.5;white-space:pre-line}
@@ -142,7 +146,7 @@ function applyTheme(){let t='dark';try{t=JSON.parse(localStorage.getItem('bl_the
  if(t==='auto')t=matchMedia('(prefers-color-scheme: light)').matches?'light':'dark';
  document.documentElement.dataset.theme=t;const m=document.querySelector('meta[name=theme-color]');if(m)m.content=t==='light'?'#f4f5f7':'#0f1115'}
 applyTheme();
-const APP_VERSION='v1.18.1';
+const APP_VERSION='v1.18.2';
 const DEFAULT_TYPES=[
  {id:'breast',name:'모유수유',emoji:'🤱',color:'#FFD54A',kind:'duration',enabled:true,feed:true,ends:['sleep'],unit:'ml',presets:[10,20,30,40,60],tags:['왼쪽','오른쪽','양쪽']},
  {id:'formula',name:'분유',emoji:'🍼',color:'#FF9F43',kind:'point',enabled:true,feed:true,ends:['sleep'],unit:'ml',presets:[20,40,60,80,100,120],defaultValue:60},
@@ -458,6 +462,31 @@ const field=(label,input)=>{
   const pen=h('button',{class:'pen',type:'button','aria-label':'입력',onclick:()=>{const v=prompt(label.replace(/ —.*$/,''),input.value);if(v!==null){input.value=v.trim();input.dispatchEvent(new Event('input'));input.dispatchEvent(new Event('change'))}}},'✏️');
   return h('div',{class:'fld'},h('span',{},label),h('div',{class:'fldrow'},input,pen))}
  return h('div',{class:'fld'},h('span',{},label),input)};
+function stepsFor(u){return /℃|°C/.test(u||'')?[-0.5,-0.1,0.1,0.5]:u==='kg'?[-0.1,-0.05,0.05,0.1]:[-10,-5,5,10]}
+function amountBox(val,t){const u=t.unit||'',steps=stepsFor(u),dec=/℃|°C/.test(u)?1:u==='kg'?2:0;
+ const big=h('b',{}),pad=numPad(val);pad.style.display='none';
+ const disp=()=>{big.textContent=val.value===''?'-':val.value};val.addEventListener('input',disp);disp();
+ const base=()=>{const n=parseFloat(val.value);if(!isNaN(n))return n;const l=events.filter(e=>e.type===t.id&&e.value!=null).sort((a,b)=>new Date(b.start_at)-new Date(a.start_at))[0];return t.defaultValue??(l?+l.value:(u==='ml'?90:u==='kg'?4:36.8))};
+ const set=v=>{val.value=String(+v.toFixed(dec));val.dataset.auto='0';val._fresh&&val._fresh();val.dispatchEvent(new Event('input'))};
+ return h('div',{},h('div',{class:'bigv',onclick:()=>{pad.style.display=pad.style.display?'':'none'}},big,h('span',{class:'u'},u),h('span',{class:'k'},'✏️ 직접')),
+  h('div',{class:'stp',style:`grid-template-columns:repeat(${steps.length},1fr)`},steps.map(d=>h('button',{type:'button',onclick:()=>set(Math.max(0,base()+d))},(d>0?'+':'−')+Math.abs(d)))),pad)}
+function timePicker(inp,o={}){
+ const big=h('b',{}),rel=h('span',{class:'r'}),grid=h('div',{style:'display:none'}),dt=h('div',{style:'display:none;margin-bottom:8px'},inp);
+ const cur=()=>inp.value?new Date(inp.value):null;
+ const set=d=>{const n=new Date();if(d>n)d=n;inp.value=toLocalInput(d);inp.dispatchEvent(new Event('change'));paint()};
+ const paint=()=>{const d=cur(),n=new Date();
+  if(!d){big.textContent=o.emptyLabel||'진행 중';rel.textContent=''}
+  else{big.textContent=(+dayStart(d)===+dayStart(n)?'':fmtMD(d)+' ')+fmtHM(d);const m=Math.round((n-d)/6e4);rel.textContent=m<=0?'지금':`${m>=60?Math.floor(m/60)+'시간 ':''}${m%60?m%60+'분':''} 전`.trim()}
+  const b=d||n,hs=[];for(let k=11;k>=0;k--)hs.push(new Date(+n-k*36e5).getHours());
+  grid.replaceChildren(h('div',{class:'hmg'},hs.map(hh=>h('button',{type:'button',class:d&&b.getHours()===hh?'on':'',onclick:()=>{const x=new Date(n);x.setHours(hh,b.getMinutes(),0,0);if(x>n)x.setDate(x.getDate()-1);set(x)}},hh+'시'))),
+   h('div',{class:'hmg'},Array.from({length:12},(_,i)=>i*5).map(mm=>h('button',{type:'button',class:d&&Math.floor(b.getMinutes()/5)*5===mm?'on':'',onclick:()=>{const x=new Date(cur()||n);x.setMinutes(mm,0,0);set(x)}},String(mm).padStart(2,'0')))))};
+ inp.addEventListener('change',paint);inp.addEventListener('input',paint);
+ const steps=[-15,-5,-1,1,5,15];
+ paint();
+ return h('div',{},h('div',{class:'tpl'},h('span',{},o.label||'시간'),h('a',{onclick:()=>{dt.style.display=dt.style.display?'':'none'}},'📅 다른 날짜')),dt,
+  h('div',{class:'bigv',onclick:()=>{grid.style.display=grid.style.display?'':'none'}},big,rel,h('span',{class:'k'},'시·분 ▾')),
+  h('div',{class:'stp',style:'grid-template-columns:repeat(6,1fr)'},steps.map(m=>h('button',{type:'button',onclick:()=>set(new Date(+(cur()||new Date())+m*6e4))},(m>0?'+':'−')+Math.abs(m)))),grid,
+  o.allowEmpty?h('div',{class:'chips',style:'margin:-2px 0 8px'},h('button',{class:'chip',type:'button',onclick:()=>set(new Date())},'지금 종료'),h('button',{class:'chip',type:'button',onclick:()=>{inp.value='';paint()}},'진행 중으로')):null)}
 function numPad(input){let fresh=true;input._fresh=()=>{fresh=true};const add=k=>{let v=input.value;if(fresh&&k!=='⌫')v='';fresh=false;if(k==='⌫')v=v.slice(0,-1);else if(k==='.'){if(!v.includes('.'))v=(v||'0')+'.'}else v=v+k;input.value=v;input.dispatchEvent(new Event('input'))};
  return h('div',{class:'npad'},['1','2','3','4','5','6','7','8','9','.','0','⌫'].map(k=>h('button',{type:'button',onclick:()=>add(k)},k)))}
 function openAmount(t,ev){
@@ -466,7 +495,7 @@ function openAmount(t,ev){
   try{const cur=events.find(x=>String(x.id)===String(ev.id))||ev;await store.update({...cur,value:n});closeSheet();await refresh();commitAct(act);toast(`${t.emoji} ${t.name} ${n}${t.unit} 저장됨`,{undo:undoLast})}catch(e){alert(e.message)}};
  sheet(`${t.emoji} ${t.name} 양 (대략, 선택)`,h('div',{},
   t.presets?h('div',{class:'chips'},t.presets.map(p=>h('button',{class:'chip big',style:p===t.defaultValue?'outline:2px solid #FF9F43':'',onclick:()=>save(p)},(p===t.defaultValue?'★ ':'')+p+t.unit))):null,
-  field(`직접 입력 (${t.unit})`,val),numPad(val),
+  amountBox(val,t),
   h('div',{class:'hint'},'모르면 건너뛰어도 돼요. 나중에 기록을 눌러 수정할 수 있어요.')),
   [h('button',{class:'btn',onclick:closeSheet},'건너뛰기'),h('button',{class:'btn pri',onclick:()=>save(val.value)},'저장')]);
 }
@@ -482,11 +511,10 @@ function openQuick(t){
  }catch(e){alert('기록 실패: '+e.message)}};
  const body=h('div',{},
   t.unit&&t.presets?h('div',{class:'chips'},t.presets.map(p=>h('button',{class:'chip big',style:p===t.defaultValue?'outline:2px solid #FF9F43':'',onclick:()=>save(p)},(p===t.defaultValue?'★ ':'')+p+t.unit))):null,
-  t.unit?field(`직접 입력 (${t.unit})`,val):null,
-  t.unit?numPad(val):null,
+  t.unit?amountBox(val,t):null,
   field('메모',note),
   t.tags?h('div',{class:'chips'},t.tags.map(g=>h('button',{class:'chip',onclick:()=>{note.value=g}},g))):null,
-  field('시간',tm),timeChips(tm));
+  timePicker(tm,{label:'시간'}));
  sheet(`${t.emoji} ${t.name}`,body,[h('button',{class:'btn pri',onclick:()=>save(t.unit?val.value:null)},'기록')]);
  if(t.askNote)setTimeout(()=>note.focus(),80);
 }
@@ -505,7 +533,7 @@ function openMemo(ev){
  if(!isNew)acts.push(h('button',{class:'btn red',onclick:async()=>{const act=beginAct('메모 삭제');try{await store.remove(ev.id);closeSheet();await refresh();commitAct(act);toast('삭제됨',{undo:undoLast})}catch(e){alert(e.message)}}},'삭제'));
  else acts.push(h('button',{class:'btn',onclick:closeSheet},'취소'));
  acts.push(h('button',{class:'btn pri',onclick:save},'저장'));
- sheet(isNew?'📝 메모 남기기':'📝 메모 수정',h('div',{},h('div',{class:'fld'},h('span',{},'종류'),chips),field('내용 — ✏️ 눌러서 입력 (받아쓰기 🎤 가능)',txt),field('시간',tm),timeChips(tm),
+ sheet(isNew?'📝 메모 남기기':'📝 메모 수정',h('div',{},h('div',{class:'fld'},h('span',{},'종류'),chips),field('내용 — ✏️ 눌러서 입력 (받아쓰기 🎤 가능)',txt),timePicker(tm,{label:'시간'}),
   !isNew&&ev.created_by?h('div',{class:'hint'},`기록자: ${ev.created_by}`):null),acts);
 }
 function openEdit(ev,isNew){
@@ -520,15 +548,15 @@ function openEdit(ev,isNew){
  const note=h('input',{type:'text',value:ev.note||''});
  const tags=h('div',{class:'chips'});
  const valChips=h('div',{class:'chips',style:'margin:0 0 6px'});
- const endF=h('div',{},field('종료 (비워두면 진행 중)',en),timeChips(en)),valF=h('div',{},field('값',val),valChips,numPad(val));
- const upd=()=>{const t=T(typeSel.value);endF.style.display=t.kind==='duration'?'':'none';valF.style.display=t.unit?'':'none';valF.querySelector('.fld span').textContent=`값 (${t.unit||''}) — 눌러서 고르거나 직접 입력`;
+ const endF=h('div',{},timePicker(en,{label:'종료',allowEmpty:true})),valF=h('div',{});
+ const upd=()=>{const t=T(typeSel.value);endF.style.display=t.kind==='duration'?'':'none';valF.style.display=t.unit?'':'none';if(t.unit&&valF._u!==t.id){valF._u=t.id;valF.replaceChildren(h('div',{class:'tpl'},h('span',{},`값 (${t.unit})`)),amountBox(val,t),valChips)}
   if(isNew&&t.unit&&t.defaultValue!=null&&(val.value===''||val.dataset.auto==='1')){val.value=t.defaultValue;val.dataset.auto='1'}
   const paint=()=>valChips.querySelectorAll('button').forEach(b=>b.style.outline=Number(b.dataset.v)===Number(val.value)?'2px solid #FF9F43':'');
   valChips.replaceChildren(...(t.unit&&t.presets?t.presets:[]).map(v=>h('button',{class:'chip big','data-v':v,onclick:()=>{val.value=v;val.dataset.auto='0';val._fresh&&val._fresh();paint()}},(v===t.defaultValue?'★ ':'')+v+t.unit)));
   paint();val.oninput=()=>{val.dataset.auto='0';paint()};
   tags.replaceChildren(...(t.tags||[]).map(g=>h('button',{class:'chip',onclick:()=>{note.value=g}},g)))};
  paintTypes();
- const body=h('div',{},h('div',{class:'fld'},h('span',{},'종류'),typeGrid),field('시작',st),timeChips(st),endF,valF,field('메모',note),tags,
+ const body=h('div',{},h('div',{class:'fld'},h('span',{},'종류'),typeGrid),timePicker(st,{label:'시작'}),endF,valF,field('메모',note),tags,
   !isNew&&ev.created_by?h('div',{class:'hint'},`기록자: ${ev.created_by}`):null);
  upd();
  const acts=[];
