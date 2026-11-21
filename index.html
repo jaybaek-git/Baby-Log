@@ -96,6 +96,7 @@ header h1{font-size:21px;margin:0;white-space:nowrap;overflow:hidden;text-overfl
 .fldrow{display:flex;gap:6px;align-items:stretch}.fldrow input{flex:1;min-width:0}
 .pen{background:var(--btn);border:0;border-radius:8px;width:44px;flex:0 0 44px;font-size:16px}
 .bigv{display:flex;align-items:baseline;justify-content:center;gap:6px;background:var(--inp);border:1px solid var(--line);border-radius:12px;padding:6px 10px;margin:2px 0 6px;cursor:pointer;position:relative}.bigv b{font-size:30px;font-weight:800}.bigv .u{font-size:14px;color:var(--sub)}.bigv .r{font-size:12px;color:var(--sub);margin-left:6px}.bigv .k{position:absolute;right:10px;top:50%;transform:translateY(-50%);font-size:12px;color:var(--sub)}
+.dial{position:relative;margin:0 0 8px}.dial .sc{height:52px;overflow-x:scroll;overflow-y:hidden;scrollbar-width:none;background:var(--inp);border:1px solid var(--line);border-radius:12px;touch-action:pan-x}.dial .sc::-webkit-scrollbar{display:none}.dial .rl{position:relative;height:100%}.dial .tk{position:absolute;bottom:0;width:1px;background:var(--sub2)}.dial .tl{position:absolute;top:5px;font-size:11px;color:var(--sub);transform:translateX(-50%);white-space:nowrap}.dial .pt{position:absolute;left:50%;top:0;bottom:0;width:2px;background:#ff5252;transform:translateX(-1px);pointer-events:none}
 .stp{display:grid;gap:6px;margin:0 0 8px}.stp button{background:var(--btn);border:0;border-radius:10px;padding:10px 0;font-size:15px;font-weight:700;color:var(--txt)}
 .hmg{display:grid;grid-template-columns:repeat(6,1fr);gap:5px;margin:0 0 8px}.hmg button{background:var(--btn);border:0;border-radius:8px;padding:8px 0;font-size:13px;font-weight:600;color:var(--txt)}.hmg button.on{background:#FFD54A;color:#111}
 .tpl{font-size:12px;color:var(--sub);margin:4px 0 4px;display:flex;align-items:center;gap:8px}.tpl a{margin-left:auto;color:var(--sub);text-decoration:underline}
@@ -146,7 +147,7 @@ function applyTheme(){let t='dark';try{t=JSON.parse(localStorage.getItem('bl_the
  if(t==='auto')t=matchMedia('(prefers-color-scheme: light)').matches?'light':'dark';
  document.documentElement.dataset.theme=t;const m=document.querySelector('meta[name=theme-color]');if(m)m.content=t==='light'?'#f4f5f7':'#0f1115'}
 applyTheme();
-const APP_VERSION='v1.18.3';
+const APP_VERSION='v1.18.4';
 const DEFAULT_TYPES=[
  {id:'breast',name:'모유수유',emoji:'🤱',color:'#FFD54A',kind:'duration',enabled:true,feed:true,ends:['sleep'],unit:'ml',presets:[10,20,30,40,60],tags:['왼쪽','오른쪽','양쪽']},
  {id:'formula',name:'분유',emoji:'🍼',color:'#FF9F43',kind:'point',enabled:true,feed:true,ends:['sleep'],unit:'ml',presets:[20,40,60,80,100,120],defaultValue:60},
@@ -462,6 +463,13 @@ const field=(label,input)=>{
   const pen=h('button',{class:'pen',type:'button','aria-label':'입력',onclick:()=>{const v=prompt(label.replace(/ —.*$/,''),input.value);if(v!==null){input.value=v.trim();input.dispatchEvent(new Event('input'));input.dispatchEvent(new Event('change'))}}},'✏️');
   return h('div',{class:'fld'},h('span',{},label),h('div',{class:'fldrow'},input,pen))}
  return h('div',{class:'fld'},h('span',{},label),input)};
+const dialMode=()=>LS.get('bl_input','btn')==='dial';
+function dial(o){const sc=h('div',{class:'sc'}),rl=h('div',{class:'rl'});sc.append(rl);let busy=false,W=0;
+ const build=()=>{W=sc.clientWidth||300;rl.style.width=(o.n*o.px+W)+'px';let x='';for(let i=0;i<=o.n;i++){const b=o.big(i),X=W/2+i*o.px;x+=`<div class="tk" style="left:${X}px;height:${b?22:11}px"></div>`;if(o.lab(i))x+=`<div class="tl" style="left:${X}px">${o.lab(i)}</div>`}rl.innerHTML=x};
+ const go=i=>{busy=true;sc.scrollLeft=Math.max(0,Math.min(o.n,i))*o.px;setTimeout(()=>busy=false,60)};
+ sc.addEventListener('scroll',()=>{if(busy)return;o.on(Math.max(0,Math.min(o.n,Math.round(sc.scrollLeft/o.px))))},{passive:true});
+ const el=h('div',{class:'dial'},sc,h('div',{class:'pt'}));el.go=go;
+ requestAnimationFrame(()=>requestAnimationFrame(()=>{build();go(o.idx())}));return el}
 function stepsFor(u){return /℃|°C/.test(u||'')?[-0.5,-0.1,0.1,0.5]:u==='kg'?[-0.1,-0.05,0.05,0.1]:[-10,-5,5,10]}
 function amountBox(val,t){const u=t.unit||'',steps=stepsFor(u),dec=/℃|°C/.test(u)?1:u==='kg'?2:0;
  const big=h('b',{}),pad=numPad(val);pad.style.display='none';
@@ -469,14 +477,17 @@ function amountBox(val,t){const u=t.unit||'',steps=stepsFor(u),dec=/℃|°C/.tes
  const base=()=>{const n=parseFloat(val.value);if(!isNaN(n))return n;const l=events.filter(e=>e.type===t.id&&e.value!=null).sort((a,b)=>new Date(b.start_at)-new Date(a.start_at))[0];return t.defaultValue??(l?+l.value:(u==='ml'?90:u==='kg'?4:36.8))};
  const set=v=>{val.value=String(+v.toFixed(dec));val.dataset.auto='0';val._fresh&&val._fresh();val.dispatchEvent(new Event('input'))};
  return h('div',{},h('div',{class:'bigv',onclick:()=>{pad.style.display=pad.style.display?'':'none'}},big,h('span',{class:'u'},u),h('span',{class:'k'},'✏️ 직접')),
-  h('div',{class:'stp',style:`grid-template-columns:repeat(${steps.length},1fr)`},steps.map(d=>h('button',{type:'button',onclick:()=>set(Math.max(0,base()+d))},(d>0?'+':'−')+Math.abs(d)))),pad)}
+  dialMode()?(()=>{if(val.value===''){val.value=String(+base().toFixed(dec));disp()}const tc=/℃|°C/.test(u),kg=u==='kg',st=tc?0.1:kg?0.05:5,mn=tc?34:kg?1:0,n=tc?80:kg?280:60,lab=i=>tc?(i%5===0?(mn+i*st).toFixed(1):''):kg?(i%10===0?(mn+i*st).toFixed(1):''):(i%4===0?String(i*st):'');
+    const d=dial({n,px:10,big:i=>tc?i%5===0:kg?i%2===0:i%2===0,lab,idx:()=>Math.round((base()-mn)/st),on:i=>{val.value=String(+(mn+i*st).toFixed(dec));val.dataset.auto='0';val._fresh&&val._fresh();val._fromDial=1;val.dispatchEvent(new Event('input'));val._fromDial=0}});
+    val.addEventListener('input',()=>{if(!val._fromDial){const v=parseFloat(val.value);if(!isNaN(v))d.go(Math.round((v-mn)/st))}});return d})()
+  :h('div',{class:'stp',style:`grid-template-columns:repeat(${steps.length},1fr)`},steps.map(d=>h('button',{type:'button',onclick:()=>set(Math.max(0,base()+d))},(d>0?'+':'−')+Math.abs(d)))),pad)}
 function timePicker(inp,o={}){
  const big=h('b',{}),rel=h('span',{class:'r'}),grid=h('div',{style:'display:none'}),dt=h('div',{style:'display:none;margin-bottom:8px'},inp);
  const cur=()=>inp.value?new Date(inp.value):null;
  const set=d=>{const n=new Date();if(d>n)d=n;inp.value=toLocalInput(d);inp.dispatchEvent(new Event('change'));paint()};
  const paint=()=>{const d=cur(),n=new Date();
   if(!d){big.textContent=o.emptyLabel||'진행 중';rel.textContent=''}
-  else{big.textContent=(+dayStart(d)===+dayStart(n)?'':fmtMD(d)+' ')+fmtHM(d);const m=Math.round((n-d)/6e4);rel.textContent=m<=0?'지금':`${m>=60?Math.floor(m/60)+'시간 ':''}${m%60?m%60+'분':''} 전`.trim()}
+  else{big.textContent=(+dayStart(d)===+dayStart(n)?'':fmtMD(d)+' ')+fmtHM(d);const m=Math.floor((n-d)/6e4);rel.textContent=m<=0?'지금':`${m>=60?Math.floor(m/60)+'시간 ':''}${m%60?m%60+'분':''} 전`.trim()}
   const b=d||n,hs=[];for(let k=11;k>=0;k--)hs.push(new Date(+n-k*36e5).getHours());
   grid.replaceChildren(h('div',{class:'hmg'},hs.map(hh=>h('button',{type:'button',class:d&&b.getHours()===hh?'on':'',onclick:()=>{const x=new Date(n);x.setHours(hh,b.getMinutes(),0,0);if(x>n)x.setDate(x.getDate()-1);set(x)}},hh+'시'))),
    h('div',{class:'hmg'},Array.from({length:12},(_,i)=>i*5).map(mm=>h('button',{type:'button',class:d&&Math.floor(b.getMinutes()/5)*5===mm?'on':'',onclick:()=>{const x=new Date(cur()||n);x.setMinutes(mm,0,0);set(x)}},String(mm).padStart(2,'0')))))};
@@ -485,7 +496,11 @@ function timePicker(inp,o={}){
  paint();
  return h('div',{},h('div',{class:'tpl'},h('span',{},o.label||'시간'),h('a',{onclick:()=>{dt.style.display=dt.style.display?'':'none'}},'📅 다른 날짜')),dt,
   h('div',{class:'bigv',onclick:()=>{grid.style.display=grid.style.display?'':'none'}},big,rel,h('span',{class:'k'},'시·분 ▾')),
-  h('div',{class:'stp',style:'grid-template-columns:repeat(6,1fr)'},steps.map(m=>h('button',{type:'button',onclick:()=>set(new Date(+(cur()||new Date())+m*6e4))},(m>0?'+':'−')+Math.abs(m)))),grid,
+  dialMode()?(()=>{const n0=Date.now(),v0=cur()?+cur():n0,end=Math.min(n0,Math.max(v0+6*36e5,n0-0)),st=Math.min(v0,end)-12*36e5,N=Math.round((end-st)/6e4);
+    const d=dial({n:N,px:8,big:i=>new Date(st+i*6e4).getMinutes()%15===0,lab:i=>{const x=new Date(st+i*6e4);return x.getMinutes()%15===0?fmtHM(x):''},idx:()=>Math.round(((cur()?+cur():n0)-st)/6e4),
+     on:i=>{inp._fromDial=1;set(new Date(st+i*6e4));inp._fromDial=0}});
+    inp.addEventListener('change',()=>{if(!inp._fromDial&&cur())d.go(Math.round((+cur()-st)/6e4))});return d})()
+  :h('div',{class:'stp',style:'grid-template-columns:repeat(6,1fr)'},steps.map(m=>h('button',{type:'button',onclick:()=>set(new Date(+(cur()||new Date())+m*6e4))},(m>0?'+':'−')+Math.abs(m)))),grid,
   o.allowEmpty?h('div',{class:'chips',style:'margin:-2px 0 8px'},h('button',{class:'chip',type:'button',onclick:()=>set(new Date())},'지금 종료'),h('button',{class:'chip',type:'button',onclick:()=>{inp.value='';paint()}},'진행 중으로')):null)}
 function numPad(input){let fresh=true;input._fresh=()=>{fresh=true};const add=k=>{let v=input.value;if(fresh&&k!=='⌫')v='';fresh=false;if(k==='⌫')v=v.slice(0,-1);else if(k==='.'){if(!v.includes('.'))v=(v||'0')+'.'}else v=v+k;input.value=v;input.dispatchEvent(new Event('input'))};
  return h('div',{class:'npad'},['1','2','3','4','5','6','7','8','9','.','0','⌫'].map(k=>h('button',{type:'button',onclick:()=>add(k)},k)))}
@@ -994,6 +1009,10 @@ function renderSettings(p){
   p.append(sec('체온 정상 범위 (두 폰 공통)',h('div',{style:'display:flex;gap:8px'},h('div',{style:'flex:1'},field('최저 ℃',lo)),h('div',{style:'flex:1'},field('최고 ℃',hi))),
    h('button',{class:'btn pri',onclick:async()=>{const a=parseFloat(lo.value),b=parseFloat(hi.value);if(!(a>30&&b>a&&b<45)){alert('범위를 확인해 주세요');return}config.tempRange={min:a,max:b};try{await saveConfig();toast('체온 범위 저장됨')}catch(e){alert(e.message)}}},'저장'),
    h('div',{class:'hint'},'범위 안이면 초록, 밖이면 빨간 숫자로 보이고, 범위를 벗어난 기록이 들어오면 두 폰에 바로 알림이 가요.\n지금 범위는 36.4~37.8℃예요. 재는 부위(귀·이마·항문)에 따라 다를 수 있으니 소아과 안내에 맞게 바꿔 주세요.')));}
+ // 입력 방식
+ {const cur=LS.get('bl_input','btn');
+  p.append(sec('시간·양 입력 방식 (이 폰에만 적용)',h('div',{class:'chips',style:'margin:0'},[['btn','버튼 (±5분 · 시/분 고르기)'],['dial','좌우 다이얼 (눈금 밀기)']].map(([v,l])=>h('button',{class:'chip'+(cur===v?' big':''),style:cur===v?'outline:2px solid #FFD54A':'',onclick:()=>{LS.set('bl_input',v);renderTab()}},l))),
+   h('div',{class:'hint'},'기록·수정 창의 시간과 양(ml·℃·kg)을 맞추는 방법이에요. 큰 숫자를 누르면 직접 입력·시/분 고르기도 돼요.')));}
  // 차트 보기
  {const big=LS.get('bl_big',false),favs=getFavs();
   p.append(sec('차트 보기 (이 폰에만 적용)',
