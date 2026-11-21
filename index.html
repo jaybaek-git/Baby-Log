@@ -142,7 +142,7 @@ function applyTheme(){let t='dark';try{t=JSON.parse(localStorage.getItem('bl_the
  if(t==='auto')t=matchMedia('(prefers-color-scheme: light)').matches?'light':'dark';
  document.documentElement.dataset.theme=t;const m=document.querySelector('meta[name=theme-color]');if(m)m.content=t==='light'?'#f4f5f7':'#0f1115'}
 applyTheme();
-const APP_VERSION='v1.17.14';
+const APP_VERSION='v1.18.1';
 const DEFAULT_TYPES=[
  {id:'breast',name:'모유수유',emoji:'🤱',color:'#FFD54A',kind:'duration',enabled:true,feed:true,ends:['sleep'],unit:'ml',presets:[10,20,30,40,60],tags:['왼쪽','오른쪽','양쪽']},
  {id:'formula',name:'분유',emoji:'🍼',color:'#FF9F43',kind:'point',enabled:true,feed:true,ends:['sleep'],unit:'ml',presets:[20,40,60,80,100,120],defaultValue:60},
@@ -296,6 +296,12 @@ function card(title,big,sub,color,fill){const c=h('div',{class:'st',style:`borde
  if(fill){c.prepend(h('i',{class:'stfill',style:`width:${Math.round(fill.p*1000)/10}%;background:${fill.c}`}));if(fill.over)c.style.borderColor=fill.c}return c}
 const TR=()=>({min:36.4,max:37.8,...(config.tempRange||{})});const tempOk=v=>v>=TR().min&&v<=TR().max;const tempCol=v=>tempOk(+v)?'#22C55E':'#EF4444';
 const progCol=p=>p<0.6?'#3a9d5d':p<0.85?'#c9a227':p<1?'#e07b39':'#d64545';
+function liveFeed(){const s=[...events].filter(e=>T(e.type).feed).sort((a,b)=>new Date(b.start_at)-new Date(a.start_at));const f=s[0];if(!f)return null;
+ let st=+new Date(f.start_at);for(const e of s.slice(1)){const t=+new Date(e.start_at);if(st-t<=30*6e4)st=t;else break}
+ const t=T(f.type),lastEnd=t.kind==='duration'&&f.end_at?+new Date(f.end_at):+new Date(f.start_at),a=alarmInfo;let dueAt=null;
+ if(a&&a.due_at)dueAt=+new Date(a.due_at)+(+a.lead_min||0)*6e4;else dueAt=lastEnd+(+(config.alarm&&config.alarm.fixedMin)||120)*6e4;
+ const p=(Date.now()-lastEnd)/Math.max(1,dueAt-lastEnd);return {start:st,lastEnd,dueAt,p,open:isOpen(f),col:progCol(p)}}
+setInterval(()=>{document.querySelectorAll('.lg').forEach(t=>{const st=+t.dataset.s;t.textContent=agoS(Date.now()-st)})},15000);
 function renderStatus(){
  const now=Date.now(),s=[...events].sort((a,b)=>new Date(b.start_at)-new Date(a.start_at));
  const f=s.find(e=>T(e.type).feed),fo=s.find(e=>T(e.type).feed&&isOpen(e)),d=s.find(e=>e.type==='diaper'),a=alarmInfo;
@@ -714,7 +720,21 @@ function renderChart(p){
   s+=`<line x1="${AX}" x2="${tx}" y1="${ny}" y2="${ny}" stroke="#ff5252" stroke-width="1.2" stroke-dasharray="4 3" opacity=".75"/>`;
   if(ti>=0)s+=`<line x1="${tx}" x2="${tx+cw}" y1="${ny}" y2="${ny}" stroke="#ff5252" stroke-width="2"/><circle cx="${tx+2}" cy="${ny}" r="3" fill="#ff5252"/>`;
   const lx=ti>=0?Math.min(W-2,tx+cw-2):W-2;
-  s+=`<text x="${lx}" y="${ny+12}" text-anchor="end" font-size="${(10*K).toFixed(1)}" fill="#ff8a80" font-weight="600">${fmtHM(nd)}</text>`;}
+  const LF=liveFeed(),NM=LS.get('bl_nowMode','label');
+  const LV=LF&&!LF.open,el=LV?agoS(Date.now()-LF.start):'';
+  if(LV&&NM==='axis'){const w=AXW;ax+=`<rect x="1" y="${ny-8}" width="${w-2}" height="27" rx="4" fill="${CC('col')}" stroke="#ff5252" stroke-width="1"/><text x="${w/2}" y="${ny+2}" text-anchor="middle" font-size="7.5" font-weight="700" fill="#ff5252">${fmtHM(nd)}</text><text class="lg" data-s="${LF.start}" x="${w/2}" y="${ny+14}" text-anchor="middle" font-size="8.5" font-weight="800" fill="${LF.col}">${el}</text>`}
+  if(LV&&ti>=0&&NM==='pill'){const pw=Math.min(46*K,cw-8),px=tx+(cw-pw)/2,ph=7.5*K;s+=`<rect x="${px}" y="${ny-ph}" width="${pw}" height="${2*ph}" rx="${ph}" fill="${LF.col}"/><text x="${px+pw/2}" y="${ny+3.6*K}" text-anchor="middle" font-size="${(9.5*K).toFixed(1)}" font-weight="800" fill="#fff">🍼 <tspan class="lg" data-s="${LF.start}">${el}</tspan></text>`}
+  if(LV&&ti>=0&&NM==='bar'){const bw=cw-10,bx=tx+5,by=ny+30*K;s+=`<text x="${lx}" y="${ny+12}" text-anchor="end" font-size="${(10*K).toFixed(1)}" fill="#ff8a80" font-weight="600">${fmtHM(nd)}</text><text x="${lx}" y="${ny+25*K}" text-anchor="end" font-size="${(9.5*K).toFixed(1)}" font-weight="800" fill="${LF.col}">🍼<tspan class="lg" data-s="${LF.start}">${el}</tspan>/${agoS(LF.dueAt-LF.lastEnd)}</text><rect x="${bx}" y="${by}" width="${bw}" height="4" rx="2" fill="${CC('grid')}"/><rect x="${bx}" y="${by}" width="${bw*Math.min(1,LF.p)}" height="4" rx="2" fill="${LF.col}"/>`}
+  else if(LF&&!LF.open&&ti>=0&&(NM==='label'||NM==='both'))s+=`<text x="${lx}" y="${ny+12}" text-anchor="end" font-size="${(10*K).toFixed(1)}" fill="#ff8a80" font-weight="600">${fmtHM(nd)}</text><text x="${lx}" y="${ny+24*K}" text-anchor="end" font-size="${(10*K).toFixed(1)}" font-weight="600" fill="#ff8a80">🍼 <tspan class="lg" data-s="${LF.start}">${agoS(Date.now()-LF.start)}</tspan></text>`;
+  else s+=`<text x="${lx}" y="${ny+12}" text-anchor="end" font-size="${(10*K).toFixed(1)}" fill="#ff8a80" font-weight="600">${fmtHM(nd)}</text>`;
+  if(LF&&!LF.open&&ti>=0&&(NM==='gap'||NM==='both')&&!hidden.has('_gap')){
+   const x=AX+ti*cw,yA=Math.max(TOP,LF.start>=today?TOP+(LF.lastEnd-today)/36e5*HH:TOP),ph=7*K;
+   s+=`<line x1="${x+cw/2}" x2="${x+cw/2}" y1="${yA+5}" y2="${ny-3}" stroke="${LF.col}" stroke-width="2" stroke-dasharray="2 3" stroke-linecap="round" opacity=".9"/>`;
+   {const os=occ[ti]||[],fw=Math.min(40*K,cw-2),cx=x+cw/2,lo=yA+ph+3,hi=ny-ph-3,_=0,fits=c=>os.every(([a1,a2,b1,b2])=>cx+fw/2<=a1||cx-fw/2>=a2||c+ph<=b1||c-ph>=b2);
+    let ym=(yA+ny)/2,best=null;for(let d=0;d<=200&&best==null;d++)for(const c of d?[ym-d,ym+d]:[ym])if(c>=lo&&c<=hi&&fits(c)){best=c;break}
+    ym=best==null?ny+ph+(NM==='both'?30*K:16*K):best;
+    s+=`<g style="pointer-events:none"><rect class="lgr" x="${cx-fw/2}" y="${ym-ph}" width="${fw}" height="${2*ph}" rx="${ph}" fill="${CC('col')}" stroke="${LF.col}" stroke-width="1.6"/><text x="${cx-fw/2+7*K}" y="${ym+3.5*K}" text-anchor="middle" font-size="${(8*K).toFixed(1)}">🍼</text><text class="lg" data-s="${LF.start}" x="${cx+6*K}" y="${ym+3.5*K}" text-anchor="middle" font-size="${(9.5*K).toFixed(1)}" font-weight="800" fill="${LF.col}">${agoS(Date.now()-LF.start)}</text></g>`}}
+ }
  s=s.replace(/<!--GU(\d+)-->/g,(m,k)=>gu[k]||'');
  const fmtV=(st,v)=>st.id==='sleep'?(+v).toFixed(1):st.id==='weight'?(+v).toFixed(2):String(Math.round(v));
  STATS.forEach((st,k)=>{const y0=ST0+k*SH+22,yb=y0+PH,col=statColor(st.id),{vals,extra}=statValues(st.id,days);
