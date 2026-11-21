@@ -147,7 +147,7 @@ function applyTheme(){let t='dark';try{t=JSON.parse(localStorage.getItem('bl_the
  if(t==='auto')t=matchMedia('(prefers-color-scheme: light)').matches?'light':'dark';
  document.documentElement.dataset.theme=t;const m=document.querySelector('meta[name=theme-color]');if(m)m.content=t==='light'?'#f4f5f7':'#0f1115'}
 applyTheme();
-const APP_VERSION='v1.18.6';
+const APP_VERSION='v1.18.7';
 const DEFAULT_TYPES=[
  {id:'breast',name:'모유수유',emoji:'🤱',color:'#FFD54A',kind:'duration',enabled:true,feed:true,ends:['sleep'],unit:'ml',presets:[10,20,30,40,60],tags:['왼쪽','오른쪽','양쪽']},
  {id:'formula',name:'분유',emoji:'🍼',color:'#FF9F43',kind:'point',enabled:true,feed:true,ends:['sleep'],unit:'ml',presets:[20,40,60,80,100,120],defaultValue:60},
@@ -382,6 +382,7 @@ async function onTap(t){
   const willEnd=events.filter(e=>(t.ends||[]).includes(e.type)&&isOpen(e));
   const endTxt=willEnd.length?' · '+willEnd.map(e=>T(e.type).emoji+' '+T(e.type).name+' 끝').join(', '):'';
   const reopen=async()=>{for(const x of willEnd)await store.update({...x,end_at:null})};
+  if(timeMode(t.id)!=='classic'&&!(t.kind==='duration'&&events.some(e=>e.type===t.id&&isOpen(e)))){openQuick(t);return}
   if(t.kind==='duration'){
    const r=await store.toggle(t.id);const ev=r.event;await refresh();act.label+=r.action==='start'?' 시작':' 종료';commitAct(act);
    toast(`${t.emoji} ${t.name} ${r.action==='start'?'시작':'종료'} ${fmtHM(new Date())}${r.action==='stop'?' · '+ago(new Date(ev.end_at)-new Date(ev.start_at)):''}${r.action==='start'?endTxt:''}`,
@@ -465,7 +466,8 @@ const field=(label,input)=>{
  return h('div',{class:'fld'},h('span',{},label),input)};
 const dialMode=()=>LS.get('bl_input','btn')==='dial';
 const TMODES=[['classic','달력·시계'],['btn','± 버튼'],['dial','다이얼']];
-const timeMode=id=>(LS.get('bl_timeMode',{})||{})[id]||(dialMode()?'dial':'btn');
+const instantType=t=>t&&(t.kind==='duration'||(!t.unit&&!t.askNote&&t.id!=='memo'));
+const timeMode=id=>(LS.get('bl_timeMode',{})||{})[id]||(instantType(T(id))?'classic':(dialMode()?'dial':'btn'));
 function dial(o){const sc=h('div',{class:'sc'}),rl=h('div',{class:'rl'});sc.append(rl);let busy=false,W=0;
  const build=()=>{W=sc.clientWidth||300;rl.style.width=(o.n*o.px+W)+'px';let x='';for(let i=0;i<=o.n;i++){const b=o.big(i),X=W/2+i*o.px;x+=`<div class="tk" style="left:${X}px;height:${b?22:11}px"></div>`;if(o.lab(i))x+=`<div class="tl" style="left:${X}px">${o.lab(i)}</div>`}rl.innerHTML=x};
  const go=i=>{busy=true;sc.scrollLeft=Math.max(0,Math.min(o.n,i))*o.px;setTimeout(()=>busy=false,60)};
@@ -532,9 +534,9 @@ function openQuick(t){
   t.unit&&t.presets?h('div',{class:'chips'},t.presets.map(p=>h('button',{class:'chip big',style:p===t.defaultValue?'outline:2px solid #FF9F43':'',onclick:()=>save(p)},(p===t.defaultValue?'★ ':'')+p+t.unit))):null,
   t.unit?amountBox(val,t):null,
   field('메모',note),
-  t.tags?h('div',{class:'chips'},t.tags.map(g=>h('button',{class:'chip',onclick:()=>{note.value=g}},g))):null,
+  t.tags?h('div',{class:'chips'},t.tags.map(g=>h('button',{class:'chip qtag',onclick:e=>{note.value=g;e.currentTarget.parentNode.querySelectorAll('.qtag').forEach(b=>b.style.outline=b===e.currentTarget?'2px solid #FFD54A':'')}},g))):null,
   timePicker(tm,{label:'시간',mode:timeMode(t.id)}));
- sheet(`${t.emoji} ${t.name}`,body,[h('button',{class:'btn pri',onclick:()=>save(t.unit?val.value:null)},'기록')]);
+ sheet(`${t.emoji} ${t.name}${t.kind==='duration'?' 시작':''}`,body,[h('button',{class:'btn pri',onclick:()=>save(t.unit?val.value:null)},t.kind==='duration'?'시작':'기록')]);
  if(t.askNote)setTimeout(()=>note.focus(),80);
 }
 function openMemo(ev){
