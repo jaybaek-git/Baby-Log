@@ -2,9 +2,10 @@
 // 처음 한 번 Scriptable 앱에서 ▶︎ 실행하면 가족 코드를 물어봐요 (이 폰 키체인에 저장).
 const API = "https://ydkjimnnyacfdllksblq.supabase.co";
 const KEY = "sb_publishable_KKuETYmezjuuXTAfeONKdg_I-quu3cq";
-// 위젯을 누르면 홈 화면에 추가한 앱으로 열기 (iOS 16.4+ webapp:// 주소).
-// 안 열리면 아래 줄의 webapp:// 를 https:// 로 바꾸면 Safari로 열려요.
-const APP = "webapp://jaybaek-git.github.io/Baby-Log/";
+// 위젯을 누르면 열 주소. 기본은 Safari.
+// 단축어 '아기기록열기'(동작: URL 열기 webapp://jaybaek-git.github.io/Baby-Log/)를 만들었다면 아래 OPEN_SHORTCUT 을 true 로.
+const OPEN_SHORTCUT = false;
+const APP = OPEN_SHORTCUT ? "shortcuts://run-shortcut?name=" + encodeURIComponent("아기기록열기") : "https://jaybaek-git.github.io/Baby-Log/";
 const KC = "babylog_code";
 
 async function getCode() {
@@ -99,10 +100,11 @@ async function build() {
     row.addSpacer();
     // 오른쪽: 다음 수유까지
     const R = col(row);
-    small(R, over ? "⚠️ 지남" : "다음까지");
-    if (due) { const d = R.addDate(due); d.applyTimerStyle(); d.font = Font.boldRoundedSystemFont(26); d.lineLimit = 1; d.minimumScaleFactor = 0.5; }
-    else bigTxt(R, "-");
-    small(R, due ? `${hm(due)}${s.today ? " · 오늘 " + s.today.ml + "ml" : ""}` : "");
+    small(R, over ? "⚠️ 다음 (지남)" : "🍼 다음");
+    bigTxt(R, due ? hm(due) : "-");
+    if (due) { const rs = R.addStack(); rs.centerAlignContent(); const a = rs.addText(over ? "지난 " : "남은 "); a.font = Font.systemFont(11); a.textOpacity = 0.8;
+      const d = rs.addDate(due); d.applyTimerStyle(); d.font = Font.boldSystemFont(11); d.lineLimit = 1; }
+    else small(R, "");
     row.addSpacer();
     return w;
   }
