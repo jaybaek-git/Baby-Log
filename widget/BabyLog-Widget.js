@@ -95,6 +95,20 @@ async function build() {
     const t3 = w.addText(due ? hm(due) : ""); t3.font = Font.systemFont(9); t3.centerAlignText(); t3.textOpacity = 0.85;
     return w;
   }
+  const P = String(args.widgetParameter || "").trim();
+  if (fam === "accessoryRectangular" && P) {
+    // 한 가지만 크게: 위젯 설정의 Parameter 에 "마지막" 또는 "다음"
+    const one = (label, big, sub, timerDate) => {
+      const l = w.addText(label); l.font = Font.systemFont(12); l.textOpacity = 0.85; l.lineLimit = 1;
+      const b = w.addText(big); b.font = Font.boldRoundedSystemFont(36); b.lineLimit = 1; b.minimumScaleFactor = 0.6;
+      if (timerDate) { const r = w.addStack(); r.centerAlignContent(); const a = r.addText(sub); a.font = Font.systemFont(12); a.textOpacity = 0.85;
+        const d = r.addDate(timerDate); d.applyTimerStyle(); d.font = Font.boldSystemFont(12); d.lineLimit = 1; d.minimumScaleFactor = 0.7; }
+      else { const t = w.addText(sub); t.font = Font.systemFont(12); t.textOpacity = 0.85; t.lineLimit = 1; t.minimumScaleFactor = 0.7; }
+    };
+    if (/^(마지막|last)/i.test(P)) one("🍼 마지막 수유", lfT ? hm(lfT) : "-", lfT ? `${ago(lfT)} 전${lf.value ? " · " + lf.value + "ml" : ""}` : "기록 없음");
+    else one(over ? "⚠️ 다음 수유 (지남)" : "🍼 다음 수유", due ? hm(due) : "-", over ? "지난 " : "남은 ", due);
+    return w;
+  }
   if (fam === "accessoryRectangular") {
     const row = w.addStack();
     row.layoutHorizontally();
@@ -114,8 +128,7 @@ async function build() {
     const R = col(row);
     small(R, over ? "⚠️ 다음 (지남)" : "🍼 다음");
     bigTxt(R, due ? hm(due) : "-");
-    if (due) { const rs = R.addStack(); rs.centerAlignContent(); const a = rs.addText(over ? "지난 " : "남은 "); a.font = Font.systemFont(11); a.textOpacity = 0.8;
-      const d = rs.addDate(due); d.applyTimerStyle(); d.font = Font.boldSystemFont(11); d.lineLimit = 1; }
+    if (due) { const d = R.addDate(due); d.applyTimerStyle(); d.font = Font.boldSystemFont(11); d.lineLimit = 1; d.minimumScaleFactor = 0.6; d.textOpacity = 0.9; }
     else small(R, "");
     row.addSpacer();
     return w;
