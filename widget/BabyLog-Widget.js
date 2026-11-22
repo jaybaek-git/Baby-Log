@@ -2,7 +2,9 @@
 // 처음 한 번 Scriptable 앱에서 ▶︎ 실행하면 가족 코드를 물어봐요 (이 폰 키체인에 저장).
 const API = "https://ydkjimnnyacfdllksblq.supabase.co";
 const KEY = "sb_publishable_KKuETYmezjuuXTAfeONKdg_I-quu3cq";
-const APP = "https://jaybaek-git.github.io/Baby-Log/";
+// 위젯을 누르면 홈 화면에 추가한 앱으로 열기 (iOS 16.4+ webapp:// 주소).
+// 안 열리면 아래 줄의 webapp:// 를 https:// 로 바꾸면 Safari로 열려요.
+const APP = "webapp://jaybaek-git.github.io/Baby-Log/";
 const KC = "babylog_code";
 
 async function getCode() {
