@@ -77,10 +77,22 @@ async function build() {
     return w;
   }
   if (fam === "accessoryCircular") {
-    w.addAccessoryWidgetBackground = true;
-    line(w, "🍼", 12).centerAlignText();
-    const t = line(w, due ? hm(due) : "-", 13, true); t.centerAlignText();
-    const u = line(w, over ? "지남" : "다음", 9); u.centerAlignText();
+    // 진행 링 (새로 고칠 때 기준) + 가운데 남은 시간 (실시간)
+    const start = s.last_end ? new Date(s.last_end) : lfT;
+    const p = due && start ? Math.max(0, Math.min(1, (Date.now() - start) / (due - start))) : 0;
+    const c = new DrawContext(); c.size = new Size(120, 120); c.opaque = false; c.respectScreenScale = true;
+    const arc = (from, to, col, wdt) => {
+      const path = new Path(), pts = [];
+      for (let k = 0; k <= 60; k++) { const a = (-90 + (from + (to - from) * k / 60) * 360) * Math.PI / 180; pts.push(new Point(60 + 52 * Math.cos(a), 60 + 52 * Math.sin(a))); }
+      path.addLines(pts); c.addPath(path); c.setStrokeColor(col); c.setLineWidth(wdt); c.strokePath();
+    };
+    arc(0, 1, new Color("#FFFFFF", 0.25), 9);
+    if (p > 0) arc(0, p, new Color("#FFFFFF", 1), 9);
+    w.backgroundImage = c.getImage();
+    const t1 = w.addText(over ? "지남" : "🍼 남음"); t1.font = Font.systemFont(9); t1.centerAlignText(); t1.textOpacity = 0.85;
+    if (due) { const d = w.addDate(due); d.applyTimerStyle(); d.font = Font.boldRoundedSystemFont(15); d.centerAlignText(); d.lineLimit = 1; d.minimumScaleFactor = 0.5; }
+    else { const t = w.addText("-"); t.font = Font.boldSystemFont(15); t.centerAlignText(); }
+    const t3 = w.addText(due ? hm(due) : ""); t3.font = Font.systemFont(9); t3.centerAlignText(); t3.textOpacity = 0.85;
     return w;
   }
   if (fam === "accessoryRectangular") {
