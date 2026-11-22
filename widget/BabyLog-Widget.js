@@ -86,21 +86,22 @@ async function build() {
     row.centerAlignContent();
     const col = (parent) => { const c = parent.addStack(); c.layoutVertically(); return c; };
     const small = (c, txt) => { const t = c.addText(txt); t.font = Font.systemFont(11); t.textOpacity = 0.8; t.lineLimit = 1; t.minimumScaleFactor = 0.6; return t; };
-    const bigTxt = (c, txt) => { const t = c.addText(txt); t.font = Font.boldRoundedSystemFont(22); t.lineLimit = 1; t.minimumScaleFactor = 0.5; return t; };
+    const bigTxt = (c, txt) => { const t = c.addText(txt); t.font = Font.boldRoundedSystemFont(26); t.lineLimit = 1; t.minimumScaleFactor = 0.5; return t; };
     // 왼쪽: 마지막 수유
     const L = col(row);
     small(L, "🍼 마지막");
     bigTxt(L, lfT ? hm(lfT) : "-");
     small(L, lfT ? `${ago(lfT)} 전${lf.value ? " · " + lf.value + "ml" : ""}` : "기록 없음");
-    row.addSpacer(8);
-    const bar = row.addStack(); bar.size = new Size(1, 44); bar.backgroundColor = new Color("#FFFFFF", 0.35);
-    row.addSpacer(8);
+    row.addSpacer();
+    const bar = row.addStack(); bar.size = new Size(1, 48); bar.backgroundColor = new Color("#FFFFFF", 0.35);
+    row.addSpacer();
     // 오른쪽: 다음 수유까지
     const R = col(row);
     small(R, over ? "⚠️ 지남" : "다음까지");
-    if (due) { const d = R.addDate(due); d.applyTimerStyle(); d.font = Font.boldRoundedSystemFont(22); d.lineLimit = 1; d.minimumScaleFactor = 0.5; }
+    if (due) { const d = R.addDate(due); d.applyTimerStyle(); d.font = Font.boldRoundedSystemFont(26); d.lineLimit = 1; d.minimumScaleFactor = 0.5; }
     else bigTxt(R, "-");
-    small(R, due ? hm(due) : "");
+    small(R, due ? `${hm(due)}${s.today ? " · 오늘 " + s.today.ml + "ml" : ""}` : "");
+    row.addSpacer();
     return w;
   }
   // 홈 화면 (small / medium / large)
