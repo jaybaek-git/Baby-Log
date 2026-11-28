@@ -57,3 +57,6 @@
 2. **새 Supabase 프로젝트** 만들기 (데이터 섞이지 않게) → SQL을 위 순서대로 적용, VAPID 키 생성, Edge Function `push` 배포, cron 등록
 3. `DEFAULT_TYPES`(기록 종류)와 문구(아기 이름, 알림 말투)를 새 용도에 맞게 수정
 4. GitHub Pages 켜기 → Safari에서 열고 홈 화면에 추가 → 연결 정보 입력
+
+## 분유 계산기 (v1.19)
+- 탭 id 'mix', renderMix()/mixSettings(). 설정은 config.mix {name,g,ml,swell}. 자동 재렌더 제외(tab!=='mix').

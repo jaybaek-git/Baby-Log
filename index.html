@@ -83,6 +83,9 @@ header h1{font-size:21px;margin:0;white-space:nowrap;overflow:hidden;text-overfl
 .li{display:flex;gap:10px;align-items:center;background:var(--card);border-radius:10px;padding:9px 11px;margin-bottom:5px}
 .li i{width:6px;align-self:stretch;border-radius:3px}
 .lm{flex:1}.lt{font-size:12px;color:var(--sub);margin-top:2px}.v{color:#ffd54a}.nt{color:var(--sub);font-size:13px}
+.mx-card{background:var(--card);border:1px solid var(--line);border-radius:14px;padding:12px 14px;margin-bottom:10px}
+.mx-res{text-align:center;padding:16px 10px}.mx-res .w{font-size:15px;color:var(--sub)}.mx-res .big{font-size:34px;font-weight:800;line-height:1.25}.mx-res .big em{font-style:normal;color:#FF9F43}.mx-res .sub{font-size:13px;color:var(--sub);margin-top:4px}
+.mx-tb{display:grid;grid-template-columns:repeat(3,1fr);gap:6px}.mx-tb button{background:var(--inp);border:1px solid var(--line);color:var(--txt);border-radius:10px;padding:8px 4px;font-size:13px}.mx-tb button.on{outline:2px solid #FF9F43}.mx-tb b{display:block;font-size:15px}
 .sw{position:relative;margin-bottom:5px;border-radius:10px;overflow:hidden}
 .sw .li{margin:0;position:relative;z-index:1;transition:transform .2s ease}
 .sw.vs{margin-bottom:8px}.sw .vrec{margin:0;position:relative;z-index:1;background:var(--sheet);transition:transform .2s ease}
@@ -141,7 +144,7 @@ header h1{font-size:21px;margin:0;white-space:nowrap;overflow:hidden;text-overfl
 <div class="topbar"><header><div class="ttl"><h1 id="title">아기 기록</h1><div id="lastUp" class="lastup"></div></div><button class="hb" id="undoB" disabled onclick="undoLast()" aria-label="되돌리기">↶</button><button class="hb" id="redoB" disabled onclick="redoLast()" aria-label="다시 실행">↷</button><div class="sync"><span class="dot" id="dot"></span><span id="synctxt">로컬</span></div></header>
 <div class="status" id="status"></div></div>
 <div class="btns" id="btns"></div>
-<div class="tabs"><button data-t="chart" class="a">차트</button><button data-t="list">목록</button><button data-t="settings">설정</button></div>
+<div class="tabs"><button data-t="chart" class="a">차트</button><button data-t="list">목록</button><button data-t="mix">분유</button><button data-t="settings">설정</button></div>
 <div id="panel"></div>
 <div id="toast"></div>
 <script>
@@ -149,7 +152,7 @@ function applyTheme(){let t='dark';try{t=JSON.parse(localStorage.getItem('bl_the
  if(t==='auto')t=matchMedia('(prefers-color-scheme: light)').matches?'light':'dark';
  document.documentElement.dataset.theme=t;const m=document.querySelector('meta[name=theme-color]');if(m)m.content=t==='light'?'#f4f5f7':'#0f1115'}
 applyTheme();
-const APP_VERSION='v1.18.13';
+const APP_VERSION='v1.19';
 const DEFAULT_TYPES=[
  {id:'breast',name:'모유수유',emoji:'🤱',color:'#FFD54A',kind:'duration',enabled:true,feed:true,ends:['sleep'],unit:'ml',presets:[10,20,30,40,60],tags:['왼쪽','오른쪽','양쪽']},
  {id:'formula',name:'분유',emoji:'🍼',color:'#FF9F43',kind:'point',enabled:true,feed:true,ends:['sleep'],unit:'ml',presets:[20,40,60,80,100,120],defaultValue:60},
@@ -288,7 +291,7 @@ async function refresh(){
 }
 function renderAll(){
  $('#title').textContent=appTitle();
- renderLive();if(tab!=='settings'&&!swipeBusy&&tabSig()!==lastSig)renderTab();
+ renderLive();if(tab!=='settings'&&tab!=='mix'&&!swipeBusy&&tabSig()!==lastSig)renderTab();
 }
 let lastScroll=0,deferT=null;
 window.addEventListener('scroll',()=>{lastScroll=Date.now()},{passive:true});
@@ -613,7 +616,7 @@ function renderTab(){
 function tabSig(){return tab+'|'+chartDays+'|'+zoomDays+'|'+(config.birthDate||'')+'|'+[...hidden].join()+'|'+(document.documentElement.dataset.theme||'')+'|'+Math.floor(Date.now()/3e5)+'|'+JSON.stringify(config.types)+'|'+JSON.stringify(events)}
 function renderTabInner(p){
  document.querySelectorAll('.tabs button').forEach(b=>b.classList.toggle('a',b.dataset.t===tab));
- if(tab==='chart')renderChart(p);else if(tab==='list')renderList(p);else renderSettings(p);
+ if(tab==='chart')renderChart(p);else if(tab==='list')renderList(p);else if(tab==='mix')renderMix(p);else renderSettings(p);
 }
 const POO='#9C6B3C',PEE='#7FD3FF';
 function diaperColor(e){const n=e.note||'';if(/대변|둘다|응가|똥/.test(n))return POO;if(/소변|쉬/.test(n))return PEE;return T('diaper').color}
@@ -890,6 +893,39 @@ function viewRecords(list,addNew){
  const box=h('div',{},h('div',{class:'swhint'},'← 왼쪽으로 밀면 수정·삭제 (끝까지 밀면 바로 삭제)'),rows);
  sheet(list.length>1?`기록 ${list.length}개`:'기록 보기',box,[h('button',{class:'btn',onclick:closeSheet},'닫기'),addNew?h('button',{class:'btn pri',onclick:()=>{closeSheet();addNew()}},'+ 이 시각에 새 기록'):null].filter(Boolean));
 }
+let mixW=null,mixMode='water';
+function mixCfg(){return Object.assign({name:'일루마 1단계',g:4.38,ml:30,swell:0.75},config.mix||{})}
+function fracStr(x){const w=Math.floor(x+1e-9),f=x-w;const F=[[0,''],[.25,'¼'],[1/3,'⅓'],[.5,'½'],[2/3,'⅔'],[.75,'¾'],[1,'']];let best=F[0];F.forEach(c=>{if(Math.abs(c[0]-f)<Math.abs(best[0]-f))best=c});const W=best[0]===1?w+1:w;return (W||!best[1]?String(W):'')+best[1]}
+function renderMix(p){
+ const c=mixCfg();
+ if(mixW==null){const l=events.filter(e=>e.type==='formula'&&e.value!=null).sort((a,b)=>new Date(b.start_at)-new Date(a.start_at))[0];mixW=l?+l.value:120}
+ const calc=()=>{const k=c.g/c.ml*c.swell;let W,V;if(mixMode==='water'){W=mixW;V=W*(1+k)}else{V=mixW;W=V/(1+k)}const sc=W/c.ml,g=sc*c.g;return {W,V,sc,g}};
+ const res=h('div',{class:'mx-card mx-res'}),tb=h('div',{class:'mx-tb'}),valB=h('b',{});
+ const paint=()=>{const r=calc(),exact=Math.abs(r.sc-Math.round(r.sc))<0.02,ss=exact?String(Math.round(r.sc)):fracStr(r.sc);
+  valB.textContent=mixW;
+  res.replaceChildren(h('div',{class:'w'},mixMode==='water'?'물 '+mixW+'ml 기준':'완성 '+mixW+'ml 만들기'),
+   h('div',{class:'big'},'물 ',h('em',{},Math.round(r.W)+'ml')),
+   h('div',{class:'big'},'+ ',h('em',{},ss+'스푼')),
+   h('div',{class:'sub'},`분유 ${r.g.toFixed(1)}g`+(exact?'':` (정확히 ${r.sc.toFixed(2)}스푼)`)+` · 완성 약 ${Math.round(r.V)}ml`));
+  tb.replaceChildren(...[60,90,120,150,180,210].map(w=>{const sc=w/c.ml;return h('button',{class:mixMode==='water'&&w===mixW?'on':'',onclick:()=>{mixMode='water';mixW=w;renderTab()}},h('b',{},w+'ml'),`${Number.isInteger(sc)?sc:fracStr(sc)}스푼 · ${(sc*c.g).toFixed(1)}g`)}))};
+ const step=d=>{mixW=Math.max(10,Math.min(400,mixW+d));paint()};
+ p.append(
+  h('div',{class:'mx-card',style:'display:flex;align-items:center;gap:8px'},h('span',{style:'font-size:22px'},'🍼'),
+   h('div',{style:'flex:1'},h('b',{},c.name),h('div',{style:'font-size:12px;color:var(--sub)'},`1스푼 ${c.g}g · 물 ${c.ml}ml당 1스푼`)),
+   h('button',{class:'chip',onclick:mixSettings},'✏️ 바꾸기')),
+  h('div',{class:'chips',style:'margin:0 0 8px'},[['water','물 양으로'],['final','완성량으로']].map(([m,l])=>h('button',{class:'chip'+(mixMode===m?' big':''),style:mixMode===m?'outline:2px solid #FF9F43':'',onclick:()=>{mixMode=m;renderTab()}},l))),
+  h('div',{class:'bigv',style:'cursor:default'},valB,h('span',{class:'u'},'ml')),
+  h('div',{class:'stp',style:'grid-template-columns:repeat(4,1fr);margin-bottom:10px'},[-30,-10,10,30].map(d=>h('button',{type:'button',onclick:()=>step(d)},(d>0?'+':'−')+Math.abs(d)))),
+  res,
+  h('div',{style:'font-size:13px;color:var(--sub);margin:4px 2px 6px'},'빠른 표 (물 기준)'),tb,
+  h('button',{class:'btn wide',style:'margin-top:12px',onclick:()=>{const r=calc();openEdit({type:'formula',start_at:new Date().toISOString(),value:Math.round(r.W)},true)}},'🍼 이 양으로 분유 기록'),
+  h('div',{style:'font-size:12px;color:var(--sub);margin:10px 2px;line-height:1.5'},`· 물을 먼저 붓고 분유를 넣어요. 스푼은 깎아서 평평하게.\n· 완성량은 가루 1g당 약 ${c.swell}ml 늘어난다고 보고 계산한 추정치예요.\n· 기록은 보통 물 양 기준으로 해요.`.split('\n').map(t=>h('div',{},t))));
+ paint()}
+function mixSettings(){const c=mixCfg();
+ const nm=h('input',{type:'text',value:c.name}),g=h('input',{type:'text',inputmode:'decimal',value:c.g}),ml=h('input',{type:'text',inputmode:'decimal',value:c.ml});
+ sheet('분유 정보',h('div',{},field('분유 이름',nm),field('1스푼 무게 (g)',g),field('물 몇 ml당 1스푼',ml),h('div',{style:'font-size:12px;color:var(--sub)'},'캔 뒷면 조유표를 보고 넣어 주세요. 아내 폰과 같이 바뀌어요.')),
+  [h('button',{class:'btn',onclick:closeSheet},'취소'),h('button',{class:'btn pri',onclick:async()=>{const G=parseFloat(g.value),M=parseFloat(ml.value);if(!(G>0)||!(M>0)){alert('숫자를 확인해 주세요');return}
+   config.mix={name:nm.value.trim()||'분유',g:G,ml:M,swell:c.swell};try{await saveConfig();closeSheet();toast('분유 정보 저장');renderTab()}catch(e){alert(e.message)}}},'저장')])}
 function renderList(p){
  p.append(h('button',{class:'btn wide',onclick:()=>openEdit({type:addType().id,start_at:new Date().toISOString()},true)},'+ 지난 기록 직접 추가'));
  const memoOnly=LS.get('bl_listMemo',false);
